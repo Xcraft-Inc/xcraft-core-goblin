@@ -62,7 +62,9 @@ class Goblin {
       if (state === undefined) {
         return {};
       }
+
       if (logicHandlers[action.type]) {
+        state.data = this.store && this.getCurrentMessage ().data;
         return logicHandlers[action.type] (state, action);
       } else {
         return state;
@@ -148,6 +150,10 @@ class Goblin {
 
   getLastAction () {
     return this.store.getState ().engine.lastAction;
+  }
+
+  getCurrentMessage () {
+    return this.store.getState ().engine.msg;
   }
 
   send (customed, payload) {
