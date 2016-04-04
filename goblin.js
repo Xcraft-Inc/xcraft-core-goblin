@@ -13,11 +13,10 @@ function isGenerator (fn) {
   return fn && isFunction (fn) && fn.constructor && fn.constructor.name === 'GeneratorFunction';
 }
 
-function *asyncQuest (quest, dispatch, goblin, store, next) {
+function *asyncQuest (quest, dispatch, goblin, next) {
   const context = {
     dispatch: dispatch,
     goblin: goblin,
-    store: store,
     next: next
   };
   yield* quest (context);
@@ -27,7 +26,7 @@ const doAsyncQuest = watt (asyncQuest);
 
 const questMiddleware = (goblin) => store => dispatch => action => {
   return isGenerator (action) ?
-    doAsyncQuest (action, dispatch, goblin, store) : dispatch (action);
+    doAsyncQuest (action, dispatch, goblin) : dispatch (action);
 };
 
 class Goblin {
