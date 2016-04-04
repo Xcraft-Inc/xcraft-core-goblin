@@ -86,7 +86,7 @@ class Goblin {
       applyMiddleware (questMiddleware (this))
     );
     console.log (`store initialized ${this.store.getState ()}`);
-    this._listener = Observable.create (observer =>
+    this._storeListener = Observable.create (observer =>
       this._store.subscribe (() => observer.onNext (this._store.getState ()))
     );
 
@@ -106,8 +106,8 @@ class Goblin {
     return this._store;
   }
 
-  get listener () {
-    return this._listener;
+  get storeListener () {
+    return this._storeListener;
   }
 
   get afterEffects () {
@@ -146,7 +146,7 @@ class Goblin {
     if (this._afterEffects[action]) {
       return this._afterEffects[action];
     }
-    this._afterEffects[action] = this._listener
+    this._afterEffects[action] = this._storeListener
                 .filter ((state) => state.engine.lastAction === action)
                 .doOnNext ( (state) => handler (state.logic)).subscribe ();
     return this._afterEffects[action];
