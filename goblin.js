@@ -45,6 +45,7 @@ class Goblin {
       }
       if (action.type === 'STARTING_QUEST') {
         state.currentQuest = action.questName;
+        state.msg = action.msg;
         return state;
       }
       if (action.type === 'ENDING_QUEST') {
