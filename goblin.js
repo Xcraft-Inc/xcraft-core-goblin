@@ -90,7 +90,7 @@ class Goblin {
       this._store.subscribe (() => observer.onNext (this._store.getState ()))
     );
 
-    this._subscriptions = {};
+    this._afterEffects = {};
     this._quests = {};
   }
 
@@ -110,8 +110,8 @@ class Goblin {
     return this._listener;
   }
 
-  get subscriptions () {
-    return this._subscriptions;
+  get afterEffects () {
+    return this._afterEffects;
   }
 
   get logger () {
@@ -143,18 +143,18 @@ class Goblin {
   }
 
   after (action, handler) {
-    if (this._subscriptions[action]) {
-      return this._subscriptions[action];
+    if (this._afterEffects[action]) {
+      return this._afterEffects[action];
     }
-    this._subscriptions[action] = this._listener
+    this._afterEffects[action] = this._listener
                 .filter ((state) => state.engine.lastAction === action)
                 .doOnNext ( (state) => handler (state.logic)).subscribe ();
-    return this._subscriptions[action];
+    return this._afterEffects[action];
   }
 
   dispose (action) {
-    if (this._subscriptions[action]) {
-      this._subscriptions[action].dispose ();
+    if (this._afterEffects[action]) {
+      this._afterEffects[action].dispose ();
     }
   }
 
