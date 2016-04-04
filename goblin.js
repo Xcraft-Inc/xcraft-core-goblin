@@ -13,9 +13,10 @@ function isGenerator (fn) {
   return fn && isFunction (fn) && fn.constructor && fn.constructor.name === 'GeneratorFunction';
 }
 
-function *asyncQuest (quest, dispatch, store, next) {
+function *asyncQuest (quest, dispatch, goblin, store, next) {
   const context = {
     dispatch: dispatch,
+    goblin: goblin,
     store: store,
     next: next
   };
@@ -24,9 +25,9 @@ function *asyncQuest (quest, dispatch, store, next) {
 
 const doAsyncQuest = watt (asyncQuest);
 
-const questMiddleware = store => dispatch => action => {
+const questMiddleware = (goblin) => store => dispatch => action => {
   return isGenerator (action) ?
-    doAsyncQuest (action, dispatch, store) : dispatch (action);
+    doAsyncQuest (action, dispatch, goblin, store) : dispatch (action);
 };
 
 class Goblin {
@@ -80,7 +81,7 @@ class Goblin {
     this._store = createStore (
       rootReducer,
       initialState,
-      applyMiddleware (questMiddleware)
+      applyMiddleware (questMiddleware (this))
     );
     console.log (`store initialized ${this.store.getState ()}`);
     this._listener = Observable.create (observer =>
