@@ -142,7 +142,7 @@ class Goblin {
     });
   }
 
-  subscribe (action, handler) {
+  after (action, handler) {
     if (this._subscriptions[action]) {
       return this._subscriptions[action];
     }
@@ -152,7 +152,7 @@ class Goblin {
     return this._subscriptions[action];
   }
 
-  unsubscribe (action) {
+  dispose (action) {
     if (this._subscriptions[action]) {
       this._subscriptions[action].dispose ();
     }
