@@ -13,6 +13,7 @@
     "rx": "^4.1.0",
     "watt": "^3.2.1",
     "xcraft-core-busclient": "^0.1.0",
+    "xcraft-core-buslog": "^0.1.0",
     "xcraft-core-log": "^0.1.0"
   }
 }
