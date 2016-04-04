@@ -47,6 +47,7 @@ class Goblin {
         return state;
       }
       if (action.type === 'ENDING_QUEST') {
+        state.lastAction = null;
         state.currentQuest = null;
         return state;
       }
@@ -183,8 +184,8 @@ class Goblin {
         }
       } finally {
         self.logger.verb ('Ending quest...');
-        quest.dispatch ({type: 'ENDING_QUEST'});
         self.sendFinishEvent (result);
+        quest.dispatch ({type: 'ENDING_QUEST'});
       }
     };
   }
