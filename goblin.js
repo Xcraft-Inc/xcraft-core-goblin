@@ -128,6 +128,11 @@ class Goblin {
     });
     return quests;
   }
+
+  getState () {
+    return this.store.getState ().logic;
+  }
+
   dispatch (action) {
     this.store.dispatch (action);
   }
