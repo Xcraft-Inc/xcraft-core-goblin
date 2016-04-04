@@ -152,6 +152,10 @@ class Goblin {
     return this.store.getState ().engine.lastAction;
   }
 
+  getCurrentQuest () {
+    return this.store.getState ().engine.currentQuest;
+  }
+
   getCurrentMessage () {
     return this.store.getState ().engine.msg;
   }
@@ -161,8 +165,8 @@ class Goblin {
   }
 
   sendFinishEvent (result) {
-    const lastAction = this.getLastAction ();
-    this.busClient.events.send (`${this.goblinName}.${lastAction}.finished`, result);
+    const currentQuest = this.getCurrentQuest ();
+    this.busClient.events.send (`${this.goblinName}.${currentQuest}.finished`, result);
   }
 
   registerQuest (questName, quest) {
