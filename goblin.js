@@ -183,7 +183,7 @@ class Goblin {
     let self = this;
     return function * (quest) {
       self.logger.verb ('Starting quest...');
-      quest.dispatch ({type: 'STARTING_QUEST'});
+      quest.dispatch ({type: 'STARTING_QUEST', questName: questName, msg: msg});
       let result = null;
       try {
         result = yield* self._quests[questName] (quest, msg);
