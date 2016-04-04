@@ -132,6 +132,12 @@ class Goblin {
     this.store.dispatch (action);
   }
 
+  do () {
+    this.store.dispatch ({
+      type: this.getCurrentQuest ()
+    });
+  }
+
   subscribe (action, handler) {
     if (this._subscriptions[action]) {
       return this._subscriptions[action];
