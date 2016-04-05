@@ -89,7 +89,16 @@ class Goblin {
     this._storeListener = Observable.create (observer =>
       this._store.subscribe (() => observer.onNext (this._store.getState ()))
     );
-
+    this._eventsListener = Observable.create (observer =>
+      this._busClient.events.catchAll ( (topic, msg) => {
+        const event = {
+          topic: topic.replace (/[^:]*::/, ''),
+          msg: msg
+        };
+        return observer.onNext (event);
+      })
+    );
+    this._eventsSubscribers = {};
     this._afterEffects = {};
     this._quests = {};
   }
@@ -149,12 +158,18 @@ class Goblin {
     this._afterEffects[action] = this._storeListener
                 .filter ((state) => state.engine.lastAction === action)
                 .doOnNext ( (state) => handler (state.logic)).subscribe ();
-    return this._afterEffects[action];
+  }
+
+  on (topic, handler) {
+    this._eventsSubscribers[topic] = this._eventsListener
+            .filter ((event) => event.topic === topic)
+            .doOnNext ( (event) => handler (event.msg.data)).subscribe ();
   }
 
   dispose (action) {
     if (this._afterEffects[action]) {
       this._afterEffects[action].dispose ();
+      delete this._afterEffects[action];
     }
   }
 
