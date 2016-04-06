@@ -85,22 +85,34 @@ class Goblin {
       initialState,
       applyMiddleware (questMiddleware (this))
     );
-    console.log (`store initialized ${this.store.getState ()}`);
+
     this._storeListener = Observable.create (observer =>
       this._store.subscribe (() => observer.onNext (this._store.getState ()))
     );
-    this._eventsListener = Observable.create (observer =>
-      this._busClient.events.catchAll ( (topic, msg) => {
-        const event = {
-          topic: topic.replace (/[^:]*::/, ''),
-          msg: msg
-        };
-        return observer.onNext (event);
-      })
-    );
-    this._eventsSubscribers = {};
+
     this._afterEffects = {};
     this._quests = {};
+    this._lifecycleQuests = {};
+
+    // lifecycle quests
+    const self = this;
+    this.registerQuest ('__start__', function * (quest) {
+      self._logger.info (`${self.goblinName} started`);
+      if (self._lifecycleQuests.start) {
+        yield* self._lifecycleQuests.start (quest);
+      } else {
+        yield quest.next ();
+      }
+    });
+
+    this.registerQuest ('__stop__', function * (quest) {
+      self._logger.info (`${self.goblinName} stopped`);
+      if (self._lifecycleQuests.stop) {
+        yield* self._lifecycleQuests.stop (quest);
+      } else {
+        yield quest.next ();
+      }
+    });
   }
 
   get goblinName () {
@@ -160,10 +172,20 @@ class Goblin {
                 .doOnNext ( (state) => handler (state.logic)).subscribe ();
   }
 
-  on (topic, handler) {
-    this._eventsSubscribers[topic] = this._eventsListener
-            .filter ((event) => event.topic === topic)
-            .doOnNext ( (event) => handler (event.msg.data)).subscribe ();
+  onStart (quest) {
+    this._lifecycleQuests.start = quest;
+  }
+
+  onStop (quest) {
+    this._lifecycleQuests.stop = quest;
+  }
+
+  sub (topic, handler) {
+    this._busClient.events.subscribe (topic, (msg) => handler (null, msg));
+  }
+
+  unsub (topic) {
+    this._busClient.events.unsubscribe (topic);
   }
 
   dispose (action) {
