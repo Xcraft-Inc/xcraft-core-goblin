@@ -207,6 +207,10 @@ class Goblin {
     return this.store.getState ().engine.msg;
   }
 
+  cmd (cmd, args, next) {
+    this.busClient.command.send (cmd, args, next);
+  }
+
   send (customed, payload) {
     this.busClient.events.send (`${this.goblinName}.${customed}`, payload);
   }
