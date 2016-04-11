@@ -31,9 +31,7 @@ const questMiddleware = (goblin) => store => dispatch => action => {
 
 class Goblin {
   constructor (goblinName, logicState, logicHandlers) {
-    this._busClient = require ('xcraft-core-busclient').getGlobal ();
     this._goblinName = goblinName;
-    this._logger = require ('xcraft-core-log') ('goblin::' + goblinName);
     const engineState = {
       lastAction: null
     };
@@ -86,18 +84,13 @@ class Goblin {
       applyMiddleware (questMiddleware (this))
     );
 
-    this._storeListener = Observable.create (observer =>
-      this._store.subscribe (() => observer.onNext (this._store.getState ()))
-    );
-
-    this._afterEffects = {};
     this._quests = {};
     this._lifecycleQuests = {};
 
     // lifecycle quests
     const self = this;
     this.registerQuest ('__start__', function * (quest) {
-      self._logger.info (`${self.goblinName} started`);
+      quest.log.info (`${self.goblinName} started`);
       if (self._lifecycleQuests.start) {
         yield* self._lifecycleQuests.start (quest);
       } else {
@@ -106,7 +99,7 @@ class Goblin {
     });
 
     this.registerQuest ('__stop__', function * (quest) {
-      self._logger.info (`${self.goblinName} stopped`);
+      quest.log.info (`${self.goblinName} stopped`);
       if (self._lifecycleQuests.stop) {
         yield* self._lifecycleQuests.stop (quest);
       } else {
@@ -119,10 +112,6 @@ class Goblin {
     return this._goblinName;
   }
 
-  get busClient () {
-    return this._busClient;
-  }
-
   get store () {
     return this._store;
   }
@@ -131,19 +120,11 @@ class Goblin {
     return this._storeListener;
   }
 
-  get afterEffects () {
-    return this._afterEffects;
-  }
-
-  get logger () {
-    return this._logger;
-  }
-
   get quests () {
     let quests = {};
     Object.keys (this._quests).forEach ((questName) => {
-      quests[questName] = (msg) => {
-        this.dispatch (this.doQuest (questName, msg));
+      quests[questName] = (msg, resp) => {
+        this.dispatch (this.doQuest (questName, msg, resp));
       };
     });
     return quests;
@@ -163,29 +144,12 @@ class Goblin {
     });
   }
 
-  after (action, handler) {
-    if (this._afterEffects[action]) {
-      return this._afterEffects[action];
-    }
-    this._afterEffects[action] = this._storeListener
-                .filter ((state) => state.engine.lastAction === action)
-                .doOnNext ( (state) => handler (state.logic)).subscribe ();
-  }
-
   onStart (quest) {
     this._lifecycleQuests.start = quest;
   }
 
   onStop (quest) {
     this._lifecycleQuests.stop = quest;
-  }
-
-  sub (topic, handler) {
-    this._busClient.events.subscribe (topic, (msg) => handler (null, msg));
-  }
-
-  unsub (topic) {
-    this._busClient.events.unsubscribe (topic);
   }
 
   dispose (action) {
@@ -207,19 +171,6 @@ class Goblin {
     return this.store.getState ().engine.msg;
   }
 
-  cmd (cmd, args, next) {
-    this.busClient.command.send (cmd, args, next);
-  }
-
-  send (customed, payload) {
-    this.busClient.events.send (`${this.goblinName}.${customed}`, payload);
-  }
-
-  sendFinishEvent (result) {
-    const currentQuest = this.getCurrentQuest ();
-    this.busClient.events.send (`${this.goblinName}.${currentQuest}.finished`, result);
-  }
-
   registerQuest (questName, quest) {
     if (!isGenerator (quest)) {
       this._quests[questName] = function * (q, msg) {
@@ -230,24 +181,32 @@ class Goblin {
     this._quests[questName] = quest;
   }
 
-  doQuest (questName, msg) {
+  doQuest (questName, msg, resp) {
     let self = this;
     return function * (quest) {
-      self.logger.verb ('Starting quest...');
+      // inject response and logger in quest
+      quest.resp = resp;
+      quest.log = resp.log;
+      quest.cmd = (cmd, args, next) => resp.command.send (cmd, args, next);
+      quest.evt = (customed, payload) => resp.events.send (`${self.goblinName}.${customed}`, payload);
+      quest.sub = (topic, handler) => resp.events.subscribe (topic, (msg) => handler (null, msg));
+      quest.unsub = (topic) => resp.events.unsubscribe (topic);
+      quest.log.verb ('Starting quest...');
       quest.dispatch ({type: 'STARTING_QUEST', questName: questName, msg: msg});
       let result = null;
       try {
         result = yield* self._quests[questName] (quest, msg);
       } catch (err) {
         if (err) {
-          self.logger.err  (`quest [${questName}] failure: ${err}`);
+          quest.log.err  (`quest [${questName}] failure: ${err}`);
           if (err.stack) {
-            self.logger.err  (`stack: ${err.stack}`);
+            quest.log.err  (`stack: ${err.stack}`);
           }
         }
       } finally {
-        self.logger.verb ('Ending quest...');
-        self.sendFinishEvent (result);
+        quest.log.verb ('Ending quest...');
+        const currentQuest = self.getCurrentQuest ();
+        resp.events.send (`${self.goblinName}.${currentQuest}.finished`, result);
         quest.dispatch ({type: 'ENDING_QUEST'});
       }
     };
