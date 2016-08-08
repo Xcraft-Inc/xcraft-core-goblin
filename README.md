@@ -11,6 +11,8 @@ This package provide a thin API and conventions for building your first goblin.
 
 # Your first goblin
 
+**WORK IN PROGRESS**
+
 ## Part 1: providing quest
 
 Create a folder named `goblin-treasure` with two files:
@@ -30,7 +32,7 @@ A `rc.json` file for describing your quest:
 }
 ```
 
-and a `my-namespace.js` file for registering your namespace and quests on the Xcraft server:
+and a `treasure.js` file for registering your namespace and quests on the Xcraft server:
 
 ```js
 'use strict';
