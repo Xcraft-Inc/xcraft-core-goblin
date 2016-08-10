@@ -13,19 +13,25 @@ function isGenerator (fn) {
   return fn && isFunction (fn) && fn.constructor && fn.constructor.name === 'GeneratorFunction';
 }
 
-function *asyncQuest (quest, dispatch, goblin, next) {
-  const context = {
-    dispatch: dispatch,
-    goblin: goblin,
-    next: next
+const doAsyncQuest = watt (function * (quest, dispatch, goblin) {
+  const questDispatcher = function (type, payload = {}, error = false) {
+    const action = isFunction (type) ? type : {
+      type,
+      payload,
+      meta: {},
+      error
+    };
+    dispatch (action);
   };
-  yield* quest (context);
-}
-
-const doAsyncQuest = watt (asyncQuest);
+  const context = {
+    dispatch: questDispatcher,
+    goblin: goblin
+  };
+  yield quest (context);
+});
 
 const questMiddleware = (goblin) => store => dispatch => action => {
-  return isGenerator (action) ?
+  return isFunction (action) ?
     doAsyncQuest (action, dispatch, goblin) : dispatch (action);
 };
 
@@ -41,8 +47,8 @@ class Goblin {
         return {};
       }
       if (action.type === 'STARTING_QUEST') {
-        state.currentQuest = action.questName;
-        state.msg = action.msg;
+        state.currentQuest = action.payload.questName;
+        state.msg = action.payload.msg;
         return state;
       }
       if (action.type === 'ENDING_QUEST') {
@@ -61,7 +67,7 @@ class Goblin {
       }
 
       if (logicHandlers[action.type]) {
-        state.data = this.store && this.getCurrentMessage ().data;
+        action.meta = this.store && this.getCurrentMessage ().data;
         return logicHandlers[action.type] (state, action);
       } else {
         return state;
@@ -134,14 +140,19 @@ class Goblin {
     return this.store.getState ().logic;
   }
 
-  dispatch (action) {
+  /*https://github.com/acdlite/flux-standard-action*/
+  dispatch (type, payload = {}, error = false) {
+    const action = isFunction (type) ? type : {
+      type,
+      payload,
+      meta: {},
+      error
+    };
     this.store.dispatch (action);
   }
 
-  do () {
-    this.store.dispatch ({
-      type: this.getCurrentQuest ()
-    });
+  do (payload = {}, error = false) {
+    this.dispatch (this.getCurrentQuest (), payload, error);
   }
 
   onStart (quest) {
@@ -173,17 +184,18 @@ class Goblin {
 
   registerQuest (questName, quest) {
     if (!isGenerator (quest)) {
-      this._quests[questName] = function * (q, msg) {
+      this._quests[questName] = watt (function * (q, msg, next) {
         quest (q, msg);
-        yield null;
-      };
+        yield next ();
+      });
+      return;
     }
-    this._quests[questName] = quest;
+    this._quests[questName] = watt (quest);
   }
 
   doQuest (questName, msg, resp) {
     let self = this;
-    return function * (quest) {
+    return watt (function * (quest) {
       // inject response and logger in quest
       quest.resp = resp;
       quest.log = resp.log;
@@ -192,10 +204,10 @@ class Goblin {
       quest.sub = (topic, handler) => resp.events.subscribe (topic, (msg) => handler (null, msg));
       quest.unsub = (topic) => resp.events.unsubscribe (topic);
       quest.log.verb ('Starting quest...');
-      quest.dispatch ({type: 'STARTING_QUEST', questName: questName, msg: msg});
+      quest.dispatch ('STARTING_QUEST', {questName, msg});
       let result = null;
       try {
-        result = yield* self._quests[questName] (quest, msg);
+        result = yield self._quests[questName] (quest, msg);
       } catch (err) {
         if (err) {
           quest.log.err  (`quest [${questName}] failure: ${err}`);
@@ -207,9 +219,9 @@ class Goblin {
         quest.log.verb ('Ending quest...');
         const currentQuest = self.getCurrentQuest ();
         resp.events.send (`${self.goblinName}.${currentQuest}.finished`, result);
-        quest.dispatch ({type: 'ENDING_QUEST'});
+        quest.dispatch ('ENDING_QUEST');
       }
-    };
+    });
   }
 }
 
