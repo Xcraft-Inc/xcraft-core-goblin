@@ -100,6 +100,8 @@ class Goblin {
     this._lifecycleQuests = {};
 
     // lifecycle quests
+    // FIXME: __start__ and __stop__ are not supported by Xcraft, and this code
+    //        is broken because it relies on quest.next which is undefined.
     this.registerQuest ('__start__', function * (quest) {
       quest.log.info (`${self.goblinName} started`);
       if (self._lifecycleQuests.start) {
