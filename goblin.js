@@ -49,7 +49,7 @@ class Goblin {
     };
 
     const engineReducer = (state, action) => {
-      if (state === undefined) {
+      if (!state) {
         return {};
       }
       if (action.type === 'STARTING_QUEST') {
@@ -68,7 +68,7 @@ class Goblin {
     };
 
     const logicReducer = (state, action) => {
-      if (state === undefined) {
+      if (!state) {
         return {};
       }
 
