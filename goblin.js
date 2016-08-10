@@ -1,9 +1,13 @@
 'use strict';
-const watt = require ('watt');
-const Observable  = require ('rx').Observable;
-const createStore = require ('redux').createStore;
-const combineReducers = require ('redux').combineReducers;
-const applyMiddleware = require ('redux').applyMiddleware;
+
+const watt         = require ('watt');
+const {Observable} = require ('rx'); // FIXME: use it!
+const {
+  createStore,
+  combineReducers,
+  applyMiddleware
+} = require ('redux');
+
 
 function isFunction (fn) {
   return typeof fn === 'function';
@@ -38,6 +42,7 @@ const questMiddleware = (goblin) => store => dispatch => action => {
 class Goblin {
   constructor (goblinName, logicState, logicHandlers) {
     this._goblinName = goblinName;
+
     const engineState = {
       lastAction: null
     };
@@ -69,9 +74,9 @@ class Goblin {
       if (logicHandlers[action.type]) {
         action.meta = this.store && this.getCurrentMessage ().data;
         return logicHandlers[action.type] (state, action);
-      } else {
-        return state;
       }
+
+      return state;
     };
 
     const rootReducer = combineReducers ({
@@ -140,7 +145,7 @@ class Goblin {
     return this.store.getState ().logic;
   }
 
-  /*https://github.com/acdlite/flux-standard-action*/
+  /* See https://github.com/acdlite/flux-standard-action */
   dispatch (type, payload = {}, error = false) {
     const action = isFunction (type) ? type : {
       type,
@@ -205,6 +210,7 @@ class Goblin {
       quest.unsub = (topic) => resp.events.unsubscribe (topic);
       quest.log.verb ('Starting quest...');
       quest.dispatch ('STARTING_QUEST', {questName, msg});
+
       let result = null;
       try {
         result = yield self._quests[questName] (quest, msg);
