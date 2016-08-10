@@ -41,6 +41,7 @@ const questMiddleware = (goblin) => store => dispatch => action => {
 
 class Goblin {
   constructor (goblinName, logicState, logicHandlers) {
+    const self = this;
     this._goblinName = goblinName;
 
     const engineState = {
@@ -99,7 +100,6 @@ class Goblin {
     this._lifecycleQuests = {};
 
     // lifecycle quests
-    const self = this;
     this.registerQuest ('__start__', function * (quest) {
       quest.log.info (`${self.goblinName} started`);
       if (self._lifecycleQuests.start) {
@@ -199,7 +199,7 @@ class Goblin {
   }
 
   doQuest (questName, msg, resp) {
-    let self = this;
+    const self = this;
     return watt (function * (quest) {
       // inject response and logger in quest
       quest.resp = resp;
