@@ -25,5 +25,8 @@
     "redux": "^3.3.1",
     "rx": "^4.1.0",
     "watt": "^3.2.2"
+  },
+  "devDependencies": {
+    "xcraft-dev-rules": "^0.1.3"
   }
 }
