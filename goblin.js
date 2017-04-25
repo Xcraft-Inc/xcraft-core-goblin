@@ -1,42 +1,45 @@
 'use strict';
 
-const watt         = require ('watt');
+const watt = require ('watt');
 const {Observable} = require ('rx'); // FIXME: use it!
-const {
-  createStore,
-  combineReducers,
-  applyMiddleware
-} = require ('redux');
-
+const {createStore, combineReducers, applyMiddleware} = require ('redux');
 
 function isFunction (fn) {
   return typeof fn === 'function';
 }
 
 function isGenerator (fn) {
-  return fn && isFunction (fn) && fn.constructor && fn.constructor.name === 'GeneratorFunction';
+  return (
+    fn &&
+    isFunction (fn) &&
+    fn.constructor &&
+    fn.constructor.name === 'GeneratorFunction'
+  );
 }
 
-const doAsyncQuest = watt (function * (quest, dispatch, goblin) {
+const doAsyncQuest = watt (function* (quest, dispatch, goblin) {
   const questDispatcher = function (type, payload = {}, error = false) {
-    const action = isFunction (type) ? type : {
-      type,
-      payload,
-      meta: {},
-      error
-    };
+    const action = isFunction (type)
+      ? type
+      : {
+          type,
+          payload,
+          meta: {},
+          error,
+        };
     dispatch (action);
   };
   const context = {
     dispatch: questDispatcher,
-    goblin: goblin
+    goblin: goblin,
   };
   yield quest (context);
 });
 
-const questMiddleware = (goblin) => store => dispatch => action => {
-  return isFunction (action) ?
-    doAsyncQuest (action, dispatch, goblin) : dispatch (action);
+const questMiddleware = goblin => store => dispatch => action => {
+  return isFunction (action)
+    ? doAsyncQuest (action, dispatch, goblin)
+    : dispatch (action);
 };
 
 class Goblin {
@@ -45,7 +48,7 @@ class Goblin {
     this._goblinName = goblinName;
 
     const engineState = {
-      lastAction: null
+      lastAction: null,
     };
 
     const engineReducer = (state, action) => {
@@ -82,12 +85,12 @@ class Goblin {
 
     const rootReducer = combineReducers ({
       engine: engineReducer,
-      logic: logicReducer
+      logic: logicReducer,
     });
 
     const initialState = {
       engine: engineState,
-      logic: logicState
+      logic: logicState,
     };
 
     this._store = createStore (
@@ -102,7 +105,7 @@ class Goblin {
     // lifecycle quests
     // FIXME: __start__ and __stop__ are not supported by Xcraft, and this code
     //        is broken because it relies on quest.next which is undefined.
-    this.registerQuest ('__start__', function * (quest) {
+    this.registerQuest ('__start__', function* (quest) {
       quest.log.info (`${self.goblinName} started`);
       if (self._lifecycleQuests.start) {
         yield* self._lifecycleQuests.start (quest);
@@ -111,7 +114,7 @@ class Goblin {
       }
     });
 
-    this.registerQuest ('__stop__', function * (quest) {
+    this.registerQuest ('__stop__', function* (quest) {
       quest.log.info (`${self.goblinName} stopped`);
       if (self._lifecycleQuests.stop) {
         yield* self._lifecycleQuests.stop (quest);
@@ -135,7 +138,7 @@ class Goblin {
 
   get quests () {
     let quests = {};
-    Object.keys (this._quests).forEach ((questName) => {
+    Object.keys (this._quests).forEach (questName => {
       quests[questName] = (msg, resp) => {
         this.dispatch (this.doQuest (questName, msg, resp));
       };
@@ -149,12 +152,14 @@ class Goblin {
 
   /* See https://github.com/acdlite/flux-standard-action */
   dispatch (type, payload = {}, error = false) {
-    const action = isFunction (type) ? type : {
-      type,
-      payload,
-      meta: {},
-      error
-    };
+    const action = isFunction (type)
+      ? type
+      : {
+          type,
+          payload,
+          meta: {},
+          error,
+        };
     this.store.dispatch (action);
   }
 
@@ -191,7 +196,7 @@ class Goblin {
 
   registerQuest (questName, quest) {
     if (!isGenerator (quest)) {
-      this._quests[questName] = watt (function * (q, msg, next) {
+      this._quests[questName] = watt (function* (q, msg, next) {
         quest (q, msg);
         yield next ();
       });
@@ -202,14 +207,16 @@ class Goblin {
 
   doQuest (questName, msg, resp) {
     const self = this;
-    return watt (function * (quest) {
+    return watt (function* (quest) {
       // inject response and logger in quest
       quest.resp = resp;
       quest.log = resp.log;
       quest.cmd = (cmd, args, next) => resp.command.send (cmd, args, next);
-      quest.evt = (customed, payload) => resp.events.send (`${self.goblinName}.${customed}`, payload);
-      quest.sub = (topic, handler) => resp.events.subscribe (topic, (msg) => handler (null, msg));
-      quest.unsub = (topic) => resp.events.unsubscribe (topic);
+      quest.evt = (customed, payload) =>
+        resp.events.send (`${self.goblinName}.${customed}`, payload);
+      quest.sub = (topic, handler) =>
+        resp.events.subscribe (topic, msg => handler (null, msg));
+      quest.unsub = topic => resp.events.unsubscribe (topic);
       quest.log.verb ('Starting quest...');
       quest.dispatch ('STARTING_QUEST', {questName, msg});
 
@@ -218,15 +225,18 @@ class Goblin {
         result = yield self._quests[questName] (quest, msg);
       } catch (err) {
         if (err) {
-          quest.log.err  (`quest [${questName}] failure: ${err}`);
+          quest.log.err (`quest [${questName}] failure: ${err}`);
           if (err.stack) {
-            quest.log.err  (`stack: ${err.stack}`);
+            quest.log.err (`stack: ${err.stack}`);
           }
         }
       } finally {
         quest.log.verb ('Ending quest...');
         const currentQuest = self.getCurrentQuest ();
-        resp.events.send (`${self.goblinName}.${currentQuest}.finished`, result);
+        resp.events.send (
+          `${self.goblinName}.${currentQuest}.finished`,
+          result
+        );
         quest.dispatch ('ENDING_QUEST');
       }
     });
