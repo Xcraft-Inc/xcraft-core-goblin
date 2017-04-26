@@ -211,7 +211,9 @@ class Goblin {
       // inject response and logger in quest
       quest.resp = resp;
       quest.log = resp.log;
-      quest.cmd = (cmd, args, next) => resp.command.send (cmd, args, next);
+      quest.cmd = watt (function* (cmd, args, next) {
+        yield resp.command.send (cmd, args, next);
+      });
       quest.evt = (customed, payload) =>
         resp.events.send (`${self.goblinName}.${customed}`, payload);
       quest.sub = (topic, handler) =>
