@@ -11,9 +11,37 @@ With goblin you can craft some redux uService on top of the Orcish Xcraft toolch
 
 This package provide a thin API and conventions for building your first goblin.
 
-# Your first goblin
+# Quest handlers
 
-**WORK IN PROGRESS**
+```js
+goblin.registerQuest ('example', (quest, msg) => {
+
+  quest.dispatch ('mutate', {my: 'data'});
+
+  // dispatch ('example' with automatic payload:
+  // msg.data -> action.meta
+  quest.goblin.do ();
+
+  // logging
+  quest.log.info ('Subscription done!');
+
+  // cmd sending
+  yield quest.cmd ('somegoblin.somequest', {
+    someparam: 'value',
+  });
+
+  // evt sending
+  // the final topic is prefixed with you goblin name
+  quest.evt ('bim.bam.boom', {some: payload});
+
+  // (sub|unsub) scribe to evt's
+  // full topic name is required
+  quest.sub ('somegoblin.topic', handler => yo);
+  quest.unsub ('somegoblin.topic');
+});
+```
+
+# Your first goblin
 
 ## Part 1: providing quest
 
@@ -87,8 +115,8 @@ Define the logic behind the `cashin` quest:
 // Define logic handlers according rc.json
 const logicHandlers = {
   cashin: (state, action) => {
-    if (!isNaN (Number (action.amount))) {
-      state.gold += Number (action.amount);
+    if (!isNaN (Number (action.meta.amount))) {
+      state.gold += Number (action.meta.amount);
       state.valid = true;
     } else {
       state.valid = false;
@@ -105,11 +133,7 @@ const goblin = new Goblin (goblinName, logicState, logicHandlers);
 
 // Register quest's according rc.json
 goblin.registerQuest ('cashin', function * (quest, msg) {
-  // we dispatch with quest an internal action called cashin  
-  quest.dispatch ({type: 'cashin', amount: msg.data.amount});
-
-  // we finish the quest
-  yield quest.next ();
+  quest.do ();
 });
 
 // We must exporting quests
