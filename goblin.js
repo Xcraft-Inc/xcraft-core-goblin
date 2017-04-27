@@ -44,7 +44,6 @@ const questMiddleware = goblin => store => dispatch => action => {
 
 class Goblin {
   constructor (goblinName, logicState, logicHandlers) {
-    const self = this;
     this._goblinName = goblinName;
 
     const engineState = {
@@ -100,28 +99,6 @@ class Goblin {
     );
 
     this._quests = {};
-    this._lifecycleQuests = {};
-
-    // lifecycle quests
-    // FIXME: __start__ and __stop__ are not supported by Xcraft, and this code
-    //        is broken because it relies on quest.next which is undefined.
-    this.registerQuest ('__start__', function* (quest) {
-      quest.log.info (`${self.goblinName} started`);
-      if (self._lifecycleQuests.start) {
-        yield* self._lifecycleQuests.start (quest);
-      } else {
-        yield quest.next ();
-      }
-    });
-
-    this.registerQuest ('__stop__', function* (quest) {
-      quest.log.info (`${self.goblinName} stopped`);
-      if (self._lifecycleQuests.stop) {
-        yield* self._lifecycleQuests.stop (quest);
-      } else {
-        yield quest.next ();
-      }
-    });
   }
 
   get goblinName () {
@@ -165,14 +142,6 @@ class Goblin {
 
   do (payload = {}, error = false) {
     this.dispatch (this.getCurrentQuest (), payload, error);
-  }
-
-  onStart (quest) {
-    this._lifecycleQuests.start = quest;
-  }
-
-  onStop (quest) {
-    this._lifecycleQuests.stop = quest;
   }
 
   dispose (action) {
