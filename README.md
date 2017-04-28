@@ -40,6 +40,34 @@ goblin.registerQuest ('example', (quest, msg) => {
   quest.unsub ('somegoblin.topic');
 });
 ```
+# Goblin Shredder
+
+Mutate your state with de Super Reaper 6000 mega shredder!
+
+```js
+const logicState = new Goblin.Shredder ({
+  gold: 0
+});
+
+const logicHandlers = {
+  cashin: (state, action) => {
+
+    state = state.set ('collection.key', {bid: ['ule','oche']});
+    if (state.includes ('collection.key[0]', 10)) {
+      const key = state.get (`collection.key.bid[0]`, 2);
+      state = state.set ('collection.lol', key);
+      state = state.del ('collection.lol');
+    }
+
+    return state;
+  }
+
+const goblin = new Goblin (goblinName, logicState, logicHandlers);
+
+
+```
+
+
 
 # Your first goblin
 
