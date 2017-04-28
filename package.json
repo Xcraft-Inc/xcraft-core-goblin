@@ -1,6 +1,6 @@
 {
   "name": "xcraft-core-goblin",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Xcraft uService API",
   "main": "goblin.js",
   "engines": {
@@ -22,6 +22,8 @@
   "author": "Samuel Loup & Mathieu Schroeter",
   "license": "MIT",
   "dependencies": {
+    "immutable": "^4.0.0-rc.2",
+    "lodash": "^4.17.4",
     "redux": "^3.3.1",
     "rx": "^4.1.0",
     "watt": "^3.2.2"

@@ -3,7 +3,7 @@
 const watt = require ('watt');
 const {Observable} = require ('rx'); // FIXME: use it!
 const {createStore, combineReducers, applyMiddleware} = require ('redux');
-
+const Shredder = require ('./lib/shredder.js');
 function isFunction (fn) {
   return typeof fn === 'function';
 }
@@ -45,7 +45,6 @@ const questMiddleware = goblin => store => dispatch => action => {
 class Goblin {
   constructor (goblinName, logicState, logicHandlers) {
     this._goblinName = goblinName;
-
     const engineState = {
       lastAction: null,
     };
@@ -87,6 +86,11 @@ class Goblin {
       logic: logicReducer,
     });
 
+    if (logicState._isSuperReaper6000) {
+      console.log ('SuperReaper6000 detected!');
+      this._shredder = logicState;
+    }
+
     const initialState = {
       engine: engineState,
       logic: logicState,
@@ -99,6 +103,10 @@ class Goblin {
     );
 
     this._quests = {};
+  }
+
+  static Shredder () {
+    return Shredder;
   }
 
   get goblinName () {
@@ -117,7 +125,7 @@ class Goblin {
     let quests = {};
     Object.keys (this._quests).forEach (questName => {
       quests[questName] = (msg, resp) => {
-        this.dispatch (this.doQuest (questName, msg, resp));
+        this.dispatch (this.doQuest (questName, msg, resp).bind (this));
       };
     });
     return quests;
@@ -180,11 +188,20 @@ class Goblin {
       // inject response and logger in quest
       quest.resp = resp;
       quest.log = resp.log;
+      if (this._shredder) {
+        this._shredder.attachLogger (resp.log);
+      }
       quest.cmd = watt (function* (cmd, args, next) {
         yield resp.command.send (cmd, args, next);
       });
-      quest.evt = (customed, payload) =>
+      quest.evt = (customed, payload) => {
+        if (payload._isSuperReaper6000) {
+          payload = payload.state;
+        }
+
         resp.events.send (`${self.goblinName}.${customed}`, payload);
+      };
+
       quest.sub = (topic, handler) =>
         resp.events.subscribe (topic, msg => handler (null, msg));
       quest.unsub = topic => resp.events.unsubscribe (topic);
