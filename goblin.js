@@ -106,10 +106,6 @@ class Goblin {
     this._quests = {};
   }
 
-  static Shredder () {
-    return Shredder;
-  }
-
   get goblinName () {
     return this._goblinName;
   }
@@ -233,3 +229,4 @@ class Goblin {
 }
 
 module.exports = Goblin;
+module.exports.Shredder = Shredder;
