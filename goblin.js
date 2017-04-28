@@ -4,6 +4,7 @@ const watt = require ('watt');
 const {Observable} = require ('rx'); // FIXME: use it!
 const {createStore, combineReducers, applyMiddleware} = require ('redux');
 const Shredder = require ('./lib/shredder.js');
+
 function isFunction (fn) {
   return typeof fn === 'function';
 }
