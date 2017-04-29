@@ -1,9 +1,9 @@
 'use strict';
 
 const watt = require ('watt');
-const {Observable} = require ('rx'); // FIXME: use it!
 const {createStore, combineReducers, applyMiddleware} = require ('redux');
 const Shredder = require ('./lib/shredder.js');
+const Persistence = require ('./lib/persistence.js');
 
 function isFunction (fn) {
   return typeof fn === 'function';
@@ -37,15 +37,34 @@ const doAsyncQuest = watt (function* (quest, dispatch, goblin) {
   yield quest (context);
 });
 
-const questMiddleware = goblin => store => dispatch => action => {
+const questMiddleware = goblin => store => next => action => {
   return isFunction (action)
-    ? doAsyncQuest (action, dispatch, goblin)
-    : dispatch (action);
+    ? doAsyncQuest (action, next, goblin)
+    : next (action);
 };
 
 class Goblin {
-  constructor (goblinName, logicState, logicHandlers) {
+  constructor (goblinName, logicState, logicHandlers, persistenceConfig) {
     this._goblinName = goblinName;
+
+    this._persistence = new Persistence ('./', this._goblinName);
+
+    for (const k in persistenceConfig) {
+      if (!('db' in persistenceConfig[k])) {
+        persistenceConfig[k].db = this._goblinName;
+      }
+      if (!('mode' in persistenceConfig[k])) {
+        throw new Error (`Bad goblin persistence config, missing for ${k}`);
+      } else {
+        if (!this._persistence.hasMode (persistenceConfig[k].mode)) {
+          throw new Error (
+            `Bad goblin persistence config, unknow mode for ${k}`
+          );
+        }
+      }
+    }
+
+    this._persistenceConfig = persistenceConfig;
     const engineState = {
       lastAction: null,
     };
@@ -84,6 +103,7 @@ class Goblin {
 
     const rootReducer = combineReducers ({
       engine: engineReducer,
+      ellen: this._persistence.ellen,
       logic: logicReducer,
     });
 
@@ -94,13 +114,17 @@ class Goblin {
 
     const initialState = {
       engine: engineState,
+      ellen: this._persistence.initialState,
       logic: logicState,
     };
 
     this._store = createStore (
       rootReducer,
       initialState,
-      applyMiddleware (questMiddleware (this))
+      applyMiddleware (
+        this._persistence.persistWith (this._persistenceConfig),
+        questMiddleware (this)
+      )
     );
 
     this._quests = {};

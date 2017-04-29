@@ -22,10 +22,14 @@
   "author": "Samuel Loup & Mathieu Schroeter",
   "license": "MIT",
   "dependencies": {
+    "fs-extra": "^3.0.0",
+    "highland": "^2.10.5",
     "immutable": "^4.0.0-rc.2",
     "lodash": "^4.17.4",
+    "mkdirp": "^0.5.1",
     "redux": "^3.3.1",
-    "rx": "^4.1.0",
+    "statedb": "^2.2.0",
+    "traverse": "^0.6.6",
     "watt": "^3.2.2"
   },
   "devDependencies": {
