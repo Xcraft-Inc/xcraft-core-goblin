@@ -226,6 +226,27 @@ class Goblin {
       quest.sub = (topic, handler) =>
         resp.events.subscribe (topic, msg => handler (null, msg));
       quest.unsub = topic => resp.events.unsubscribe (topic);
+
+      quest.loadState = watt (function* (next) {
+        quest.log.verb ('Loading state...');
+        if (Object.keys (this._persistenceConfig).length > 0) {
+          quest.log.verb ('starting riplay');
+          yield this._persistence.ripley (this._store, resp.log, next);
+        }
+        quest.log.verb ('Loading state [done]');
+      }).bind (this);
+
+      quest.saveState = watt (function* (next) {
+        quest.log.verb ('Saving state...');
+        const state = this._store.getState ();
+        yield this._persistence.saveState (
+          state.ellen.get (this._goblinName),
+          next
+        );
+        yield this._persistence.waitForWrites (next);
+        quest.log.verb ('Saving state [done]');
+      }).bind (this);
+
       quest.log.verb ('Starting quest...');
       quest.dispatch ('STARTING_QUEST', {questName, msg});
 
