@@ -64,7 +64,7 @@ class Goblin {
       }
     }
 
-    this._persistenceConfig = persistenceConfig | {};
+    this._persistenceConfig = persistenceConfig || {};
     const engineState = {
       lastAction: null,
     };
