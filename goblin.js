@@ -235,8 +235,11 @@ class Goblin {
       quest.loadState = watt (function* (next) {
         quest.log.verb ('Loading state...');
         if (Object.keys (this._persistenceConfig).length > 0) {
-          quest.log.verb ('starting riplay');
+          quest.log.verb ('Replaying...');
           yield this._persistence.ripley (this._store, resp.log, next);
+          quest.log.verb ('Replaying [done]');
+        } else {
+          quest.log.verb ('nothing to replay (empty config)');
         }
         quest.log.verb ('Loading state [done]');
       }).bind (this);
