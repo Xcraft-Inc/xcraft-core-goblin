@@ -247,10 +247,7 @@ class Goblin {
       quest.saveState = watt (function* (next) {
         quest.log.verb ('Saving state...');
         const state = this._store.getState ();
-        yield this._persistence.saveState (
-          state.ellen.get (this._goblinName),
-          next
-        );
+        this._persistence.saveState (state.ellen.get (this._goblinName));
         yield this._persistence.waitForWrites (next);
         quest.log.verb ('Saving state [done]');
       }).bind (this);
