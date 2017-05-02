@@ -215,6 +215,9 @@ class Goblin {
         this._shredder.attachLogger (resp.log);
       }
       quest.cmd = watt (function* (cmd, args, next) {
+        if (arguments.length == 2) {
+          yield resp.command.send (cmd, next);
+        }
         yield resp.command.send (cmd, args, next);
       });
       quest.evt = (customed, payload) => {
