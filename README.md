@@ -40,6 +40,27 @@ goblin.registerQuest ('example', (quest, msg) => {
   quest.unsub ('somegoblin.topic');
 });
 ```
+
+# Goblin state persitence "feat. Ellen Riplay"
+
+```js
+const persistenceConfig = {
+  DISPATCH_TYPENAME_TO_REPLAY: {
+    mode: 'all'
+  },
+  ANOTHER_TYPENAME_TO_REPLAY: {
+    mode: 'last'
+  },
+  YA_TYPE_BYKEY: {
+    mode: 'allbykeys',
+    keys: ['key1']
+  }
+}
+
+// Give the persistence config at last arg.
+const goblin = new Goblin (goblinName, logicState, logicHandlers, persistenceConfig);
+```
+
 # Goblin Shredder
 
 Mutate your state with de Super Reaper 6000 mega shredder!
