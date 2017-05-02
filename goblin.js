@@ -94,7 +94,9 @@ class Goblin {
       }
 
       if (logicHandlers[action.type]) {
-        action.meta = this.store && this.getCurrentMessage ().data;
+        if (!action.meta._ripley) {
+          action.meta = this.getCurrentMessage ().data;
+        }
         return logicHandlers[action.type] (state, action);
       }
 
