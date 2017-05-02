@@ -39,7 +39,7 @@ const doAsyncQuest = watt (function* (quest, dispatch, goblin) {
 
 const questMiddleware = goblin => store => next => action => {
   return isFunction (action)
-    ? doAsyncQuest (action, next, goblin)
+    ? doAsyncQuest (action, store.dispatch, goblin)
     : next (action);
 };
 
