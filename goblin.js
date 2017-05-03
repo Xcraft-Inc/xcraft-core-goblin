@@ -211,9 +211,6 @@ class Goblin {
       // inject response and logger in quest
       quest.resp = resp;
       quest.log = resp.log;
-      if (this._shredder) {
-        this._shredder.attachLogger (resp.log);
-      }
       quest.cmd = watt (function* (cmd, args, next) {
         if (arguments.length == 2) {
           yield resp.command.send (cmd, next);
