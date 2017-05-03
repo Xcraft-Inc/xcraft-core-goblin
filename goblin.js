@@ -110,7 +110,6 @@ class Goblin {
     });
 
     if (logicState._isSuperReaper6000) {
-      console.log ('SuperReaper6000 detected!');
       this._shredder = logicState;
     }
 
