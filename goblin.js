@@ -61,12 +61,9 @@ class Goblin {
       }
       if (!('mode' in persistenceConfig[k])) {
         throw new Error (`Bad goblin persistence config, missing for ${k}`);
-      } else {
-        if (!this._persistence.hasMode (persistenceConfig[k].mode)) {
-          throw new Error (
-            `Bad goblin persistence config, unknow mode for ${k}`
-          );
-        }
+      }
+      if (!this._persistence.hasMode (persistenceConfig[k].mode)) {
+        throw new Error (`Bad goblin persistence config, unknow mode for ${k}`);
       }
     }
 
