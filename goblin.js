@@ -45,9 +45,15 @@ const questMiddleware = goblin => store => next => action => {
 
 class Goblin {
   constructor (goblinName, logicState, logicHandlers, persistenceConfig) {
+    const path = require ('path');
+    const xConfig = require ('xcraft-core-etc') ().load ('xcraft');
+
     this._goblinName = goblinName;
 
-    this._persistence = new Persistence ('./', this._goblinName);
+    this._persistence = new Persistence (
+      path.join (xConfig.xcraftRoot, 'var/ripley'),
+      this._goblinName
+    );
 
     for (const k in persistenceConfig) {
       if (!('db' in persistenceConfig[k])) {
