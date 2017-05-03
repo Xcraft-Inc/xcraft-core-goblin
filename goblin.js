@@ -213,6 +213,7 @@ class Goblin {
       quest.cmd = watt (function* (cmd, args, next) {
         if (arguments.length === 2) {
           yield resp.command.send (cmd, next);
+          return;
         }
         yield resp.command.send (cmd, args, next);
       });
