@@ -49,7 +49,7 @@ class Goblin {
     const xConfig = require ('xcraft-core-etc') ().load ('xcraft');
 
     this._goblinName = goblinName;
-
+    this._logger = require ('xcraft-core-log') (goblinName, null);
     this._persistence = new Persistence (
       path.join (xConfig.xcraftRoot, 'var/ripley'),
       this._goblinName
@@ -132,6 +132,14 @@ class Goblin {
     );
 
     this._quests = {};
+
+    if (this.usePersitence) {
+      this._unsubscribePersistence = this._store.subscribe (() => {
+        this._logger.verb ('Saving state...');
+        const state = this._store.getState ();
+        this._persistence.saveState (state.ellen.get (this._goblinName));
+      });
+    }
   }
 
   get goblinName () {
@@ -154,6 +162,10 @@ class Goblin {
       };
     });
     return quests;
+  }
+
+  get usePersitence () {
+    return Object.keys (this._persistenceConfig).length > 0;
   }
 
   getState () {
@@ -234,7 +246,7 @@ class Goblin {
 
       quest.loadState = watt (function* (next) {
         quest.log.verb ('Loading state...');
-        if (Object.keys (this._persistenceConfig).length > 0) {
+        if (this.usePersitence) {
           quest.log.verb ('Replaying...');
           yield this._persistence.ripley (this._store, resp.log, next);
           quest.log.verb ('Replaying [done]');
