@@ -133,7 +133,7 @@ class Goblin {
 
     this._quests = {};
 
-    if (this.usePersitence) {
+    if (this.usePersistence) {
       this._unsubscribePersistence = this._store.subscribe (() => {
         this._logger.verb ('Saving state...');
         const state = this._store.getState ();
@@ -164,7 +164,7 @@ class Goblin {
     return quests;
   }
 
-  get usePersitence () {
+  get usePersistence () {
     return Object.keys (this._persistenceConfig).length > 0;
   }
 
@@ -246,7 +246,7 @@ class Goblin {
 
       quest.loadState = watt (function* (next) {
         quest.log.verb ('Loading state...');
-        if (this.usePersitence) {
+        if (this.usePersistence) {
           quest.log.verb ('Replaying...');
           yield this._persistence.ripley (this._store, resp.log, next);
           quest.log.verb ('Replaying [done]');
