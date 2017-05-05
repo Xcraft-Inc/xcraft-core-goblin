@@ -270,6 +270,13 @@ class Goblin {
       let result = null;
       try {
         result = yield self._quests[questName] (quest, msg);
+        if (self.goblinName !== 'warehouse') {
+          quest.log.verb (`${self.goblinName} upserting`);
+          yield quest.cmd ('warehouse.upsert', {
+            branch: self.goblinName,
+            data: self.getState (),
+          });
+        }
       } catch (err) {
         if (err) {
           quest.log.err (`quest [${questName}] failure: ${err}`);
