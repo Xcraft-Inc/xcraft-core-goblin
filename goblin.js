@@ -5,6 +5,23 @@ const {createStore, combineReducers, applyMiddleware} = require ('redux');
 const Shredder = require ('./lib/shredder.js');
 const Persistence = require ('./lib/persistence.js');
 
+function createAction (type, payload, error) {
+  const action = isFunction (type)
+    ? type
+    : {
+        type,
+        payload,
+        meta: {},
+        error,
+      };
+
+  if (!isFunction (type)) {
+    action.get = key =>
+      action.payload[key] ? action.payload[key] : action.meta[key];
+  }
+  return action;
+}
+
 function isFunction (fn) {
   return typeof fn === 'function';
 }
@@ -20,14 +37,7 @@ function isGenerator (fn) {
 
 const doAsyncQuest = watt (function* (quest, dispatch, goblin) {
   const questDispatcher = function (type, payload = {}, error = false) {
-    const action = isFunction (type)
-      ? type
-      : {
-          type,
-          payload,
-          meta: {},
-          error,
-        };
+    const action = createAction (type, payload, error);
     dispatch (action);
   };
   const context = {
@@ -106,6 +116,10 @@ class Goblin {
       return state;
     };
 
+    this._logicHasType = type => {
+      return !!logicHandlers[type];
+    };
+
     const rootReducer = combineReducers ({
       engine: engineReducer,
       ellen: this._persistence.ellen,
@@ -174,18 +188,15 @@ class Goblin {
 
   /* See https://github.com/acdlite/flux-standard-action */
   dispatch (type, payload = {}, error = false) {
-    const action = isFunction (type)
-      ? type
-      : {
-          type,
-          payload,
-          meta: {},
-          error,
-        };
+    const action = createAction (type, payload, error);
     this.store.dispatch (action);
   }
 
   do (payload = {}, error = false) {
+    const currentQuest = this.getCurrentQuest ();
+    if (!this._logicHasType (currentQuest)) {
+      throw new Error (`Cannot do (${currentQuest}), missing logic handler`);
+    }
     this.dispatch (this.getCurrentQuest (), payload, error);
   }
 
@@ -223,6 +234,7 @@ class Goblin {
     const self = this;
     return watt (function* (quest) {
       // inject response and logger in quest
+      msg.get = key => msg.data[key];
       quest.resp = resp;
       quest.log = resp.log;
       quest.cmd = watt (function* (cmd, args, next) {
@@ -269,12 +281,16 @@ class Goblin {
 
       let result = null;
       try {
+        if (this._shredder) {
+          this._shredder.attachLogger (resp.log);
+        }
         result = yield self._quests[questName] (quest, msg);
         if (self.goblinName !== 'warehouse') {
           quest.log.verb (`${self.goblinName} upserting`);
+
           yield quest.cmd ('warehouse.upsert', {
             branch: self.goblinName,
-            data: self.getState (),
+            data: this._shredder ? self.getState ().state : self.getState (),
           });
         }
       } catch (err) {
@@ -292,6 +308,9 @@ class Goblin {
           result
         );
         quest.dispatch ('ENDING_QUEST');
+        if (this._shredder) {
+          this._shredder.detachLogger ();
+        }
       }
     });
   }
