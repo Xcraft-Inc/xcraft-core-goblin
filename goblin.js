@@ -255,6 +255,9 @@ class Goblin {
         resp.events.send (`${self.goblinName}.${customed}`, payload);
       };
 
+      quest.waitsub = watt (function* (topic, next) {
+        yield resp.events.subscribe (topic, msg => next (null, msg));
+      });
       quest.sub = (topic, handler) =>
         resp.events.subscribe (topic, msg => handler (null, msg));
       quest.unsub = topic => resp.events.unsubscribe (topic);
