@@ -245,6 +245,9 @@ class Goblin {
         yield resp.command.send (cmd, args, next);
       });
       quest.evt = (customed, payload) => {
+        if (!payload) {
+          payload = {};
+        }
         if (payload._isSuperReaper6000) {
           payload = payload.state;
         }
