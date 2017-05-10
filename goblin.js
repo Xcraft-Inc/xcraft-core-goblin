@@ -79,25 +79,26 @@ class Goblin {
 
     this._persistenceConfig = persistenceConfig || {};
     const engineState = {
-      lastAction: null,
+      questsStack: [],
     };
 
     const engineReducer = (state, action) => {
       if (!state) {
         return {};
       }
+
       if (action.type === 'STARTING_QUEST') {
-        state.currentQuest = action.payload.questName;
-        state.msg = action.payload.msg;
+        state.questsStack.push ({
+          currentQuest: action.payload.questName,
+          msg: action.payload.msg,
+        });
         return state;
       }
       if (action.type === 'ENDING_QUEST') {
-        state.lastAction = null;
-        state.currentQuest = null;
+        state.questsStack.pop ();
         return state;
       }
 
-      state.lastAction = action.type;
       return state;
     };
 
@@ -207,16 +208,14 @@ class Goblin {
     }
   }
 
-  getLastAction () {
-    return this.store.getState ().engine.lastAction;
-  }
-
   getCurrentQuest () {
-    return this.store.getState ().engine.currentQuest;
+    const {questsStack} = this.store.getState ().engine;
+    return questsStack[questsStack.length - 1].currentQuest;
   }
 
   getCurrentMessage () {
-    return this.store.getState ().engine.msg;
+    const {questsStack} = this.store.getState ().engine;
+    return questsStack[questsStack.length - 1].msg;
   }
 
   registerQuest (questName, quest) {
