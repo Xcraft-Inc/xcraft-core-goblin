@@ -259,7 +259,6 @@ class Goblin {
       });
       quest.sub = (topic, handler) =>
         resp.events.subscribe (topic, msg => handler (null, msg));
-      quest.unsub = topic => resp.events.unsubscribe (topic);
 
       quest.loadState = watt (function* (next) {
         quest.log.verb ('Loading state...');

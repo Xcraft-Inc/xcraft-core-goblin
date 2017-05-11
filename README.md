@@ -36,8 +36,8 @@ goblin.registerQuest ('example', (quest, msg) => {
 
   // (sub|unsub) scribe to evt's
   // full topic name is required
-  quest.sub ('somegoblin.topic', handler => yo);
-  quest.unsub ('somegoblin.topic');
+  const unsub = quest.sub ('somegoblin.topic', handler => yo);
+  unsub ();
 });
 ```
 
