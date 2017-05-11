@@ -38,6 +38,9 @@ goblin.registerQuest ('example', (quest, msg) => {
   // full topic name is required
   const unsub = quest.sub ('somegoblin.topic', handler => yo);
   unsub ();
+
+  // wait on an event
+  yield quest.sub.wait ('somegoblin.topic');
 });
 ```
 

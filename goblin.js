@@ -254,11 +254,12 @@ class Goblin {
         resp.events.send (`${self.goblinName}.${customed}`, payload);
       };
 
-      quest.waitsub = watt (function* (topic, next) {
+      quest.sub = function (topic, handler) {
+        resp.events.subscribe (topic, msg => handler (null, msg));
+      };
+      quest.sub.wait = watt (function* (topic, next) {
         yield resp.events.subscribe (topic, msg => next (null, msg));
       });
-      quest.sub = (topic, handler) =>
-        resp.events.subscribe (topic, msg => handler (null, msg));
 
       quest.loadState = watt (function* (next) {
         quest.log.verb ('Loading state...');
