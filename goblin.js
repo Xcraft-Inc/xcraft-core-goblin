@@ -2,7 +2,7 @@
 
 const watt = require ('watt');
 const {createStore, combineReducers, applyMiddleware} = require ('redux');
-const Shredder = require ('./lib/shredder.js');
+const Shredder = require ('xcraft-core-shredder');
 const Persistence = require ('./lib/persistence.js');
 
 function createAction (type, payload, error) {

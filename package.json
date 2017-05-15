@@ -31,7 +31,8 @@
     "statedb": "^2.2.0",
     "traverse": "^0.6.6",
     "watt": "^3.2.2",
-    "xcraft-core-log": "^1.0.0"
+    "xcraft-core-log": "^1.0.0",
+    "xcraft-core-shredder": "^0.0.1"
   },
   "devDependencies": {
     "chai": "^3.5.0",
