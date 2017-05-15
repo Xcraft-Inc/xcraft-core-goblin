@@ -238,10 +238,11 @@ class Goblin {
       quest.log = resp.log;
       quest.cmd = watt (function* (cmd, args, next) {
         if (arguments.length === 2) {
-          yield resp.command.send (cmd, next);
-          return;
+          const msg = yield resp.command.send (cmd, next);
+          return msg.data;
         }
-        yield resp.command.send (cmd, args, next);
+        const msg = yield resp.command.send (cmd, args, next);
+        return msg.data;
       });
       quest.evt = (customed, payload) => {
         if (!payload) {
