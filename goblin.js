@@ -256,10 +256,16 @@ class Goblin {
       };
 
       quest.sub = function (topic, handler) {
-        resp.events.subscribe (topic, msg => handler (null, msg));
+        return resp.events.subscribe (topic, msg => handler (null, msg));
       };
+
       quest.sub.wait = watt (function* (topic, next) {
-        yield resp.events.subscribe (topic, msg => next (null, msg));
+        const _next = next.parallel ();
+        const unsubWait = resp.events.subscribe (topic, msg =>
+          _next (null, msg)
+        );
+        yield next.sync ();
+        unsubWait ();
       });
 
       quest.loadState = watt (function* (next) {
