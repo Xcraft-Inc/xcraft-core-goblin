@@ -328,12 +328,11 @@ class Goblin {
     this.store.dispatch (action);
   }
 
-  do (payload = {}, error = false) {
-    const currentQuest = this.getCurrentQuest ();
-    if (!this._logicHasType (currentQuest)) {
-      throw new Error (`Cannot do (${currentQuest}), missing logic handler`);
+  _do (questName, payload = {}, error = false) {
+    if (!this._logicHasType (questName)) {
+      throw new Error (`Cannot do (${questName}), missing logic handler`);
     }
-    this.dispatch (this.getCurrentQuest (), payload, error);
+    this.dispatch (questName, payload, error);
   }
 
   dispose (action) {
@@ -341,11 +340,6 @@ class Goblin {
       this._afterEffects[action].dispose ();
       delete this._afterEffects[action];
     }
-  }
-
-  getCurrentQuest () {
-    const {questsStack} = this.store.getState ().engine;
-    return questsStack[questsStack.length - 1].currentQuest;
   }
 
   getCurrentMessage () {
@@ -413,6 +407,10 @@ class Goblin {
         quest.log.verb ('Saving state [done]');
       }).bind (this);
 
+      quest.do = (...args) => {
+        return this._do (questName, ...args);
+      };
+
       quest.log.verb ('Starting quest...');
       quest.dispatch ('STARTING_QUEST', {questName, msg});
 
@@ -439,11 +437,7 @@ class Goblin {
         }
       } finally {
         quest.log.verb ('Ending quest...');
-        const currentQuest = this.getCurrentQuest ();
-        resp.events.send (
-          `${this.goblinName}.${currentQuest}.finished`,
-          result
-        );
+        resp.events.send (`${this.goblinName}.${questName}.finished`, result);
         quest.dispatch ('ENDING_QUEST');
         if (this._shredder) {
           this._shredder.detachLogger ();

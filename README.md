@@ -20,7 +20,7 @@ goblin.registerQuest ('example', (quest, msg) => {
 
   // dispatch ('example' with automatic payload:
   // msg.data -> action.meta
-  quest.goblin.do ();
+  quest.do ();
 
   // logging
   quest.log.info ('Subscription done!');
