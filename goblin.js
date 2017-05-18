@@ -89,6 +89,22 @@ class Goblin {
           resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
+        if (!msg.data) {
+          // Single?
+          if (!GOBLINS[goblinName][goblinName]) {
+            resp.log.err (`No goblin found for ${goblinName}`);
+            resp.events.send (`${goblinName}.${questName}.finished`, null);
+            return;
+          }
+          const goblin = GOBLINS[goblinName][goblinName];
+          goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
+          return;
+        }
+        if (!msg.data.goblinId) {
+          resp.log.err (`No goblinId provided for ${goblinName}`);
+          resp.events.send (`${goblinName}.${questName}.finished`, null);
+          return;
+        }
         const goblin = GOBLINS[goblinName][msg.data.goblinId];
         if (!goblin) {
           resp.log.err (`Bad goblinId ${msg.data.goblinId} for ${goblinName}`);
@@ -118,6 +134,10 @@ class Goblin {
     if (!GOBLINS[goblinName]) {
       GOBLINS[goblinName] = {};
     }
+    // Single ?
+    if (GOBLINS[goblinName][goblinName]) {
+      throw new Error ('A single goblin exist');
+    }
     const goblinId = uniqueIdentifier || uuidV4 ();
     GOBLINS[goblinName][goblinId] = new Goblin (
       goblinId,
@@ -128,6 +148,21 @@ class Goblin {
     );
 
     return GOBLINS[goblinName][id];
+  }
+
+  static createSingle (goblinName) {
+    if (!GOBLINS[goblinName]) {
+      GOBLINS[goblinName] = {};
+    }
+    GOBLINS[goblinName][goblinName] = new Goblin (
+      goblinName,
+      goblinName,
+      CONFIGS[goblinName].logicState,
+      CONFIGS[goblinName].logicHandlers,
+      CONFIGS[goblinName].persistenceConfig
+    );
+
+    return GOBLINS[goblinName][goblinName];
   }
 
   constructor (
@@ -150,7 +185,7 @@ class Goblin {
 
     for (const k in persistenceConfig) {
       if (!('db' in persistenceConfig[k])) {
-        persistenceConfig[k].db = this._goblinName;
+        persistenceConfig[k].db = `${this._goblinName}-${this._goblinId}`;
       }
       if (!('mode' in persistenceConfig[k])) {
         throw new Error (`Bad goblin persistence config, missing for ${k}`);
