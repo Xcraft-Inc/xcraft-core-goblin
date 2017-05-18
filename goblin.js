@@ -4,6 +4,7 @@ const watt = require ('watt');
 const {createStore, combineReducers, applyMiddleware} = require ('redux');
 const Shredder = require ('xcraft-core-shredder');
 const Persistence = require ('./lib/persistence.js');
+const uuidV4 = require ('uuid/v4');
 
 function createAction (type, payload, error) {
   const action = isFunction (type)
@@ -56,11 +57,88 @@ const questMiddleware = goblin => store => next => action => {
 // Quest registry
 const QUESTS = {};
 
+// Goblins registry
+const GOBLINS = {};
+
+// Configs registry
+const CONFIGS = {};
+
 class Goblin {
-  constructor (goblinName, logicState, logicHandlers, persistenceConfig) {
+  static registerQuest (goblinName, questName, quest) {
+    if (!QUESTS[goblinName]) {
+      QUESTS[goblinName] = {};
+    }
+    if (!isGenerator (quest)) {
+      QUESTS[goblinName][questName] = watt (function* (q, msg, next) {
+        quest (q, msg);
+        yield next ();
+      });
+      return;
+    }
+    QUESTS[goblinName][questName] = watt (quest);
+  }
+
+  static getQuests (goblinName) {
+    let quests = {};
+    Object.keys (QUESTS[goblinName]).forEach (questName => {
+      quests[questName] = (msg, resp) => {
+        if (!GOBLINS[goblinName]) {
+          resp.log.err (
+            `You must create a ${goblinName} goblin before calling ${questName}`
+          );
+          return;
+        }
+        const goblin = GOBLINS[goblinName][msg.data.goblinId];
+        if (!goblin) {
+          resp.log.err (`Bad goblinId ${msg.data.goblinId} for ${goblinName}`);
+          return;
+        }
+        goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
+      };
+    });
+    return quests;
+  }
+
+  static configure (goblinName, logicState, logicHandlers, persistenceConfig) {
+    if (!CONFIGS[goblinName]) {
+      CONFIGS[goblinName] = {};
+    }
+    CONFIGS[goblinName] = {
+      logicState,
+      logicHandlers,
+      persistenceConfig,
+    };
+
+    return Goblin.getQuests (goblinName);
+  }
+
+  static create (goblinName) {
+    if (!GOBLINS[goblinName]) {
+      GOBLINS[goblinName] = {};
+    }
+    const goblinId = uuidV4 ();
+    GOBLINS[goblinName][goblinId] = new Goblin (
+      goblinId,
+      goblinName,
+      CONFIGS[goblinName].logicState,
+      CONFIGS[goblinName].logicHandlers,
+      CONFIGS[goblinName].persistenceConfig
+    );
+
+    return GOBLINS[goblinName][id];
+  }
+
+  constructor (
+    goblinId,
+    goblinName,
+    logicState,
+    logicHandlers,
+    persistenceConfig
+  ) {
     const path = require ('path');
     const xConfig = require ('xcraft-core-etc') ().load ('xcraft');
 
+    this._goblinId = goblinId;
     this._goblinName = goblinName;
     this._logger = require ('xcraft-core-log') (goblinName, null);
     this._persistence = new Persistence (
@@ -149,8 +227,6 @@ class Goblin {
       )
     );
 
-    this._quests = {};
-
     if (this.usePersistence) {
       this._unsubscribePersistence = this._store.subscribe (() => {
         this._logger.verb ('Saving state...');
@@ -170,16 +246,6 @@ class Goblin {
 
   get storeListener () {
     return this._storeListener;
-  }
-
-  get quests () {
-    let quests = {};
-    Object.keys (QUESTS[this._goblinName]).forEach (questName => {
-      quests[questName] = (msg, resp) => {
-        this.dispatch (this.doQuest (questName, msg, resp).bind (this));
-      };
-    });
-    return quests;
   }
 
   get usePersistence () {
@@ -219,20 +285,6 @@ class Goblin {
   getCurrentMessage () {
     const {questsStack} = this.store.getState ().engine;
     return questsStack[questsStack.length - 1].msg;
-  }
-
-  static registerQuest (goblinName, questName, quest) {
-    if (!QUESTS[goblinName]) {
-      QUESTS[goblinName] = {};
-    }
-    if (!isGenerator (quest)) {
-      QUESTS[goblinName][questName] = watt (function* (q, msg, next) {
-        quest (q, msg);
-        yield next ();
-      });
-      return;
-    }
-    QUESTS[goblinName][questName] = watt (quest);
   }
 
   doQuest (questName, msg, resp) {
