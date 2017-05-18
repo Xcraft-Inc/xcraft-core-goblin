@@ -53,6 +53,9 @@ const questMiddleware = goblin => store => next => action => {
     : next (action);
 };
 
+// Quest registry
+const QUESTS = {};
+
 class Goblin {
   constructor (goblinName, logicState, logicHandlers, persistenceConfig) {
     const path = require ('path');
@@ -171,7 +174,7 @@ class Goblin {
 
   get quests () {
     let quests = {};
-    Object.keys (this._quests).forEach (questName => {
+    Object.keys (QUESTS[this._goblinName]).forEach (questName => {
       quests[questName] = (msg, resp) => {
         this.dispatch (this.doQuest (questName, msg, resp).bind (this));
       };
@@ -218,15 +221,18 @@ class Goblin {
     return questsStack[questsStack.length - 1].msg;
   }
 
-  registerQuest (questName, quest) {
+  static registerQuest (goblinName, questName, quest) {
+    if (!QUESTS[goblinName]) {
+      QUESTS[goblinName] = {};
+    }
     if (!isGenerator (quest)) {
-      this._quests[questName] = watt (function* (q, msg, next) {
+      QUESTS[goblinName][questName] = watt (function* (q, msg, next) {
         quest (q, msg);
         yield next ();
       });
       return;
     }
-    this._quests[questName] = watt (quest);
+    QUESTS[goblinName][questName] = watt (quest);
   }
 
   doQuest (questName, msg, resp) {
@@ -296,7 +302,7 @@ class Goblin {
         if (this._shredder) {
           this._shredder.attachLogger (resp.log);
         }
-        result = yield self._quests[questName] (quest, msg);
+        result = yield QUESTS[this._goblinName][questName] (quest, msg);
         if (self.goblinName !== 'warehouse') {
           quest.log.verb (`${self.goblinName} upserting`);
 
