@@ -54,47 +54,14 @@ const questMiddleware = goblin => store => next => action => {
     : next (action);
 };
 
-const injectMessageDataGetter = msg => {
+function injectMessageDataGetter (msg) {
   msg.get = key => {
     if (msg.data) {
-      msg.data[key];
+      return msg.data[key];
     }
+    return null;
   };
-};
-
-const injectQuestBusHelpers = (quest, resp) => {
-  quest.resp = resp;
-  quest.log = resp.log;
-  quest.cmd = watt (function* (cmd, args, next) {
-    if (arguments.length === 2) {
-      const msg = yield resp.command.send (cmd, next);
-      return msg.data;
-    }
-    const msg = yield resp.command.send (cmd, args, next);
-    return msg.data;
-  });
-  quest.evt = (customed, payload) => {
-    if (!payload) {
-      payload = {};
-    }
-    if (payload._isSuperReaper6000) {
-      payload = payload.state;
-    }
-
-    resp.events.send (`${self.goblinName}.${customed}`, payload);
-  };
-
-  quest.sub = function (topic, handler) {
-    return resp.events.subscribe (topic, msg => handler (null, msg));
-  };
-
-  quest.sub.wait = watt (function* (topic, next) {
-    const _next = next.parallel ();
-    const unsubWait = resp.events.subscribe (topic, msg => _next (null, msg));
-    yield next.sync ();
-    unsubWait ();
-  });
-};
+}
 
 // Quest registry
 const QUESTS = {};
@@ -112,8 +79,8 @@ class Goblin {
     }
     if (!isGenerator (quest)) {
       QUESTS[goblinName][questName] = watt (function* (q, msg, next) {
-        quest (q, msg);
-        yield next ();
+        return quest (q, msg);
+        //yield next (null, res);
       });
       return;
     }
@@ -128,7 +95,8 @@ class Goblin {
         quests[questName] = (msg, resp) => {
           injectMessageDataGetter (msg);
           const id = msg.get ('id') || uuidV4 ();
-          const goblin = Goblin.create (goblinName, id);
+          const fullId = `${goblinName}@${id}`;
+          const goblin = Goblin.create (goblinName, fullId);
           goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
         };
         return;
@@ -160,9 +128,9 @@ class Goblin {
           resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
-        const goblin = GOBLINS[goblinName][msg.data.goblinId];
+        const goblin = GOBLINS[goblinName][msg.data.id];
         if (!goblin) {
-          resp.log.err (`Bad id ${msg.data.goblinId} for ${goblinName}`);
+          resp.log.err (`Bad id ${msg.data.id} for ${goblinName}`);
           resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
@@ -385,11 +353,45 @@ class Goblin {
     return questsStack[questsStack.length - 1].msg;
   }
 
+  injectQuestBusHelpers (quest, resp) {
+    quest.resp = resp;
+    quest.log = resp.log;
+    quest.cmd = watt (function* (cmd, args, next) {
+      if (arguments.length === 2) {
+        next = args;
+        args = null;
+      }
+      const msg = yield resp.command.send (cmd, args, next);
+      return msg.data;
+    });
+    quest.evt = (customed, payload) => {
+      if (!payload) {
+        payload = {};
+      }
+      if (payload._isSuperReaper6000) {
+        payload = payload.state;
+      }
+
+      resp.events.send (`${this.goblinName}.${customed}`, payload);
+    };
+
+    quest.sub = function (topic, handler) {
+      return resp.events.subscribe (topic, msg => handler (null, msg));
+    };
+
+    quest.sub.wait = watt (function* (topic, next) {
+      const _next = next.parallel ();
+      const unsubWait = resp.events.subscribe (topic, msg => _next (null, msg));
+      yield next.sync ();
+      unsubWait ();
+    });
+  }
+
   doQuest (questName, msg, resp) {
     const self = this;
     return watt (function* (quest) {
       injectMessageDataGetter (msg);
-      injectQuestBusHelpers (quest, resp);
+      this.injectQuestBusHelpers (quest, resp);
 
       quest.loadState = watt (function* (next) {
         quest.log.verb ('Loading state...');
@@ -437,9 +439,9 @@ class Goblin {
         }
       } finally {
         quest.log.verb ('Ending quest...');
-        const currentQuest = self.getCurrentQuest ();
+        const currentQuest = this.getCurrentQuest ();
         resp.events.send (
-          `${self.goblinName}.${currentQuest}.finished`,
+          `${this.goblinName}.${currentQuest}.finished`,
           result
         );
         quest.dispatch ('ENDING_QUEST');
