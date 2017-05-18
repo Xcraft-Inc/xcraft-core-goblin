@@ -89,15 +89,17 @@ class Goblin {
           resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
-        if (!msg.data) {
-          // Single?
-          if (!GOBLINS[goblinName][goblinName]) {
-            resp.log.err (`No goblin found for ${goblinName}`);
-            resp.events.send (`${goblinName}.${questName}.finished`, null);
-            return;
-          }
+
+        // Single?
+        if (GOBLINS[goblinName][goblinName]) {
           const goblin = GOBLINS[goblinName][goblinName];
           goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
+          return;
+        }
+
+        if (!msg.data) {
+          resp.log.err (`No goblinId provided for ${goblinName}`);
+          resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
         if (!msg.data.goblinId) {
