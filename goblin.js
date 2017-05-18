@@ -54,6 +54,48 @@ const questMiddleware = goblin => store => next => action => {
     : next (action);
 };
 
+const injectMessageDataGetter = msg => {
+  msg.get = key => {
+    if (msg.data) {
+      msg.data[key];
+    }
+  };
+};
+
+const injectQuestBusHelpers = (quest, resp) => {
+  quest.resp = resp;
+  quest.log = resp.log;
+  quest.cmd = watt (function* (cmd, args, next) {
+    if (arguments.length === 2) {
+      const msg = yield resp.command.send (cmd, next);
+      return msg.data;
+    }
+    const msg = yield resp.command.send (cmd, args, next);
+    return msg.data;
+  });
+  quest.evt = (customed, payload) => {
+    if (!payload) {
+      payload = {};
+    }
+    if (payload._isSuperReaper6000) {
+      payload = payload.state;
+    }
+
+    resp.events.send (`${self.goblinName}.${customed}`, payload);
+  };
+
+  quest.sub = function (topic, handler) {
+    return resp.events.subscribe (topic, msg => handler (null, msg));
+  };
+
+  quest.sub.wait = watt (function* (topic, next) {
+    const _next = next.parallel ();
+    const unsubWait = resp.events.subscribe (topic, msg => _next (null, msg));
+    yield next.sync ();
+    unsubWait ();
+  });
+};
+
 // Quest registry
 const QUESTS = {};
 
@@ -81,10 +123,21 @@ class Goblin {
   static getQuests (goblinName) {
     let quests = {};
     Object.keys (QUESTS[goblinName]).forEach (questName => {
+      //Handle create
+      if (questName === 'create') {
+        quests[questName] = (msg, resp) => {
+          injectMessageDataGetter (msg);
+          const id = msg.get ('id') || uuidV4 ();
+          const goblin = Goblin.create (goblinName, id);
+          goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
+        };
+        return;
+      }
+
       quests[questName] = (msg, resp) => {
         if (!GOBLINS[goblinName]) {
           resp.log.err (
-            `You must create a ${goblinName} goblin before calling ${questName}`
+            `You must call ${goblinName}.create before calling ${questName}`
           );
           resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
@@ -98,18 +151,18 @@ class Goblin {
         }
 
         if (!msg.data) {
-          resp.log.err (`No goblinId provided for ${goblinName}`);
+          resp.log.err (`No id provided for ${goblinName}`);
           resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
-        if (!msg.data.goblinId) {
-          resp.log.err (`No goblinId provided for ${goblinName}`);
+        if (!msg.data.id) {
+          resp.log.err (`No id provided for ${goblinName}`);
           resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
         const goblin = GOBLINS[goblinName][msg.data.goblinId];
         if (!goblin) {
-          resp.log.err (`Bad goblinId ${msg.data.goblinId} for ${goblinName}`);
+          resp.log.err (`Bad id ${msg.data.goblinId} for ${goblinName}`);
           resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
@@ -128,6 +181,10 @@ class Goblin {
       logicHandlers,
       persistenceConfig,
     };
+
+    if (!GOBLINS[goblinName]) {
+      GOBLINS[goblinName] = {};
+    }
 
     return Goblin.getQuests (goblinName);
   }
@@ -149,7 +206,7 @@ class Goblin {
       CONFIGS[goblinName].persistenceConfig
     );
 
-    return GOBLINS[goblinName][id];
+    return GOBLINS[goblinName][goblinId];
   }
 
   static createSingle (goblinName) {
@@ -228,9 +285,7 @@ class Goblin {
       }
 
       if (logicHandlers[action.type]) {
-        if (!action.meta._ripley) {
-          action.meta = this.getCurrentMessage ().data;
-        }
+        action.meta = this.getCurrentMessage ().data;
         return logicHandlers[action.type] (state, action);
       }
 
@@ -273,6 +328,10 @@ class Goblin {
         this._persistence.saveState (state.ellen.get (this._goblinName));
       });
     }
+  }
+
+  get id () {
+    return this._goblinId;
   }
 
   get goblinName () {
@@ -329,41 +388,8 @@ class Goblin {
   doQuest (questName, msg, resp) {
     const self = this;
     return watt (function* (quest) {
-      // inject response and logger in quest
-      msg.get = key => msg.data[key];
-      quest.resp = resp;
-      quest.log = resp.log;
-      quest.cmd = watt (function* (cmd, args, next) {
-        if (arguments.length === 2) {
-          const msg = yield resp.command.send (cmd, next);
-          return msg.data;
-        }
-        const msg = yield resp.command.send (cmd, args, next);
-        return msg.data;
-      });
-      quest.evt = (customed, payload) => {
-        if (!payload) {
-          payload = {};
-        }
-        if (payload._isSuperReaper6000) {
-          payload = payload.state;
-        }
-
-        resp.events.send (`${self.goblinName}.${customed}`, payload);
-      };
-
-      quest.sub = function (topic, handler) {
-        return resp.events.subscribe (topic, msg => handler (null, msg));
-      };
-
-      quest.sub.wait = watt (function* (topic, next) {
-        const _next = next.parallel ();
-        const unsubWait = resp.events.subscribe (topic, msg =>
-          _next (null, msg)
-        );
-        yield next.sync ();
-        unsubWait ();
-      });
+      injectMessageDataGetter (msg);
+      injectQuestBusHelpers (quest, resp);
 
       quest.loadState = watt (function* (next) {
         quest.log.verb ('Loading state...');
@@ -398,7 +424,7 @@ class Goblin {
           quest.log.verb (`${self.goblinName} upserting`);
 
           yield quest.cmd ('warehouse.upsert', {
-            branch: self.goblinName,
+            branch: self._goblinId,
             data: this._shredder ? self.getState ().state : self.getState (),
           });
         }
