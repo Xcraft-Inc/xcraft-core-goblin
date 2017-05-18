@@ -412,7 +412,7 @@ class Goblin {
           quest.log.verb (`${self.goblinName} upserting`);
 
           yield quest.cmd ('warehouse.upsert', {
-            branch: self._goblinId,
+            branch: this._goblinId,
             data: this._shredder ? self.getState ().state : self.getState (),
           });
         }
