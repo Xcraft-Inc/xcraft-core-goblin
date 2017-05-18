@@ -6,13 +6,13 @@ const Shredder = require ('xcraft-core-shredder');
 const Persistence = require ('./lib/persistence.js');
 const uuidV4 = require ('uuid/v4');
 
-function createAction (type, payload, error) {
+function createAction (type, payload, meta, error) {
   const action = isFunction (type)
     ? type
     : {
         type,
         payload,
-        meta: {},
+        meta: payload.meta || {},
         error,
       };
 
@@ -223,9 +223,7 @@ class Goblin {
     }
 
     this._persistenceConfig = persistenceConfig || {};
-    const engineState = {
-      questsStack: [],
-    };
+    const engineState = {};
 
     const engineReducer = (state, action) => {
       if (!state) {
@@ -233,14 +231,9 @@ class Goblin {
       }
 
       if (action.type === 'STARTING_QUEST') {
-        state.questsStack.push ({
-          currentQuest: action.payload.questName,
-          msg: action.payload.msg,
-        });
         return state;
       }
       if (action.type === 'ENDING_QUEST') {
-        state.questsStack.pop ();
         return state;
       }
 
@@ -253,7 +246,6 @@ class Goblin {
       }
 
       if (logicHandlers[action.type]) {
-        action.meta = this.getCurrentMessage ().data;
         return logicHandlers[action.type] (state, action);
       }
 
@@ -342,11 +334,6 @@ class Goblin {
     }
   }
 
-  getCurrentMessage () {
-    const {questsStack} = this.store.getState ().engine;
-    return questsStack[questsStack.length - 1].msg;
-  }
-
   injectQuestBusHelpers (quest, resp) {
     quest.resp = resp;
     quest.log = resp.log;
@@ -407,8 +394,9 @@ class Goblin {
         quest.log.verb ('Saving state [done]');
       }).bind (this);
 
-      quest.do = (...args) => {
-        return this._do (questName, ...args);
+      quest.do = (action = {}, ...args) => {
+        action.meta = msg.data;
+        return this._do (questName, action, msg.data, ...args);
       };
 
       quest.log.verb ('Starting quest...');
