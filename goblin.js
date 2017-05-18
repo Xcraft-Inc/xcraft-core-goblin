@@ -86,11 +86,13 @@ class Goblin {
           resp.log.err (
             `You must create a ${goblinName} goblin before calling ${questName}`
           );
+          resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
         const goblin = GOBLINS[goblinName][msg.data.goblinId];
         if (!goblin) {
           resp.log.err (`Bad goblinId ${msg.data.goblinId} for ${goblinName}`);
+          resp.events.send (`${goblinName}.${questName}.finished`, null);
           return;
         }
         goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
@@ -112,11 +114,11 @@ class Goblin {
     return Goblin.getQuests (goblinName);
   }
 
-  static create (goblinName) {
+  static create (goblinName, uniqueIdentifier) {
     if (!GOBLINS[goblinName]) {
       GOBLINS[goblinName] = {};
     }
-    const goblinId = uuidV4 ();
+    const goblinId = uniqueIdentifier || uuidV4 ();
     GOBLINS[goblinName][goblinId] = new Goblin (
       goblinId,
       goblinName,
