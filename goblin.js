@@ -94,9 +94,8 @@ class Goblin {
       if (questName === 'create') {
         quests[questName] = (msg, resp) => {
           injectMessageDataGetter (msg);
-          const id = msg.get ('id') || uuidV4 ();
-          const fullId = `${goblinName}@${id}`;
-          const goblin = Goblin.create (goblinName, fullId);
+          const id = msg.get ('id') || `${goblinName}@${uuidV4 ()}`;
+          const goblin = Goblin.create (goblinName, id);
           goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
         };
         return;
