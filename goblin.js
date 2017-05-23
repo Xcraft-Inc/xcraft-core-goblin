@@ -191,11 +191,11 @@ class Goblin {
     return GOBLINS[goblinName][goblinName];
   }
 
-  static _do (goblin, questName, payload = {}, error = false) {
-    if (!goblin._logicHasType (questName)) {
+  _do (questName, payload = {}, error = false) {
+    if (!this._logicHasType (questName)) {
       throw new Error (`Cannot do (${questName}), missing logic handler`);
     }
-    goblin.dispatch (questName, payload, error);
+    this.dispatch (questName, payload, error);
   }
 
   constructor (
@@ -390,7 +390,7 @@ class Goblin {
 
       quest.do = (action = {}, ...args) => {
         action.meta = msg.data;
-        return Goblin._do (quest.goblin, questName, action, msg.data, ...args);
+        return this._do (questName, action, msg.data, ...args);
       };
 
       quest.log.verb ('Starting quest...');
