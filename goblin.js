@@ -164,7 +164,7 @@ class Goblin {
     if (GOBLINS[goblinName][goblinName]) {
       throw new Error ('A single goblin exist');
     }
-    const goblinId = uniqueIdentifier || uuidV4 ();
+    const goblinId = uniqueIdentifier || `${goblinName}@${uuidV4 ()}`;
     GOBLINS[goblinName][goblinId] = new Goblin (
       goblinId,
       goblinName,
