@@ -191,6 +191,13 @@ class Goblin {
     return GOBLINS[goblinName][goblinName];
   }
 
+  static _do (goblin, questName, payload = {}, error = false) {
+    if (!goblin._logicHasType (questName)) {
+      throw new Error (`Cannot do (${questName}), missing logic handler`);
+    }
+    goblin.dispatch (questName, payload, error);
+  }
+
   constructor (
     goblinId,
     goblinName,
@@ -261,14 +268,10 @@ class Goblin {
       logic: logicReducer,
     });
 
-    if (logicState._isSuperReaper6000) {
-      this._shredder = logicState;
-    }
-
     const initialState = {
       engine: engineState,
       ellen: this._persistence.initialState,
-      logic: logicState,
+      logic: new Goblin.Shredder (logicState),
     };
 
     this._store = createStore (
@@ -319,13 +322,6 @@ class Goblin {
     this.store.dispatch (action);
   }
 
-  _do (questName, payload = {}, error = false) {
-    if (!this._logicHasType (questName)) {
-      throw new Error (`Cannot do (${questName}), missing logic handler`);
-    }
-    this.dispatch (questName, payload, error);
-  }
-
   dispose (action) {
     if (this._afterEffects[action]) {
       this._afterEffects[action].dispose ();
@@ -368,7 +364,6 @@ class Goblin {
   }
 
   doQuest (questName, msg, resp) {
-    const self = this;
     return watt (function* (quest) {
       injectMessageDataGetter (msg);
       this.injectQuestBusHelpers (quest, resp);
@@ -395,7 +390,7 @@ class Goblin {
 
       quest.do = (action = {}, ...args) => {
         action.meta = msg.data;
-        return this._do (questName, action, msg.data, ...args);
+        return Goblin._do (quest.goblin, questName, action, msg.data, ...args);
       };
 
       quest.log.verb ('Starting quest...');
@@ -403,16 +398,14 @@ class Goblin {
 
       let result = null;
       try {
-        if (this._shredder) {
-          this._shredder.attachLogger (resp.log);
-        }
+        this.getState ().attachLogger (resp.log);
         result = yield QUESTS[this._goblinName][questName] (quest, msg);
-        if (self.goblinName !== 'warehouse') {
-          quest.log.verb (`${self.goblinName} upserting`);
+        if (this.goblinName !== 'warehouse') {
+          quest.log.verb (`${this.goblinName} upserting`);
 
           quest.cmd ('warehouse.upsert', {
             branch: this._goblinId,
-            data: this._shredder ? self.getState ().state : self.getState (),
+            data: this.getState ().state,
           });
         }
       } catch (err) {
@@ -426,9 +419,7 @@ class Goblin {
         quest.log.verb ('Ending quest...');
         resp.events.send (`${this.goblinName}.${questName}.finished`, result);
         quest.dispatch ('ENDING_QUEST');
-        if (this._shredder) {
-          this._shredder.detachLogger ();
-        }
+        this.getState ().detachLogger ();
       }
     });
   }
