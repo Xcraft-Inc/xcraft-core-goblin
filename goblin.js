@@ -134,6 +134,12 @@ class Goblin {
           return;
         }
         goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
+
+        //Handle delete
+        if (questName === 'delete') {
+          delete GOBLINS[goblinName][msg.data.id];
+          return;
+        }
       };
     });
     return quests;
@@ -402,11 +408,15 @@ class Goblin {
         result = yield QUESTS[this._goblinName][questName] (quest, msg);
         if (this.goblinName !== 'warehouse') {
           quest.log.verb (`${this.goblinName} upserting`);
-
           quest.cmd ('warehouse.upsert', {
             branch: this._goblinId,
             data: this.getState ().state,
           });
+          if (questName === 'delete') {
+            quest.cmd ('warehouse.remove', {
+              branch: this._goblinId,
+            });
+          }
         }
       } catch (err) {
         if (err) {
