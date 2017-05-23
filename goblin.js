@@ -291,7 +291,7 @@ class Goblin {
 
     if (this.usePersistence) {
       this._unsubscribePersistence = this._store.subscribe (() => {
-        this._logger.verb ('Saving state...');
+        this._logger.verb (`Saving ${this._goblinName} state...`);
         const state = this._store.getState ();
         this._persistence.saveState (state.ellen.get (this._goblinName));
       });
