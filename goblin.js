@@ -36,6 +36,51 @@ function isGenerator (fn) {
   );
 }
 
+function getContextManager () {
+  return {
+    get: name => {
+      const states = {};
+      const ids = [];
+      let single = false;
+      Object.keys (GOBLINS[name]).forEach (k => {
+        if (k === name) {
+          single = true;
+        }
+        ids.push (k);
+        states[k] = GOBLINS[name][k].store.getState ();
+      });
+      return {
+        states,
+        ids,
+        isSingle: single && GOBLINS[name].size === 1,
+        sessions: SESSIONS[name] || {},
+      };
+    },
+    set: watt (function* (name, context, resp, next) {
+      for (const id of context.ids) {
+        yield resp.command.send (
+          `${name}.create`,
+          {id, __recreate__: true},
+          next
+        );
+        SESSIONS[name][id] = context.sessions[id];
+        GOBLINS[name][id].store.dispatch ({
+          type: '@@RELOAD_STATE',
+          state: context.states[id],
+        });
+        if (name !== 'warehouse') {
+          resp.command.send ('warehouse.upsert', {
+            branch: id,
+            data: GOBLINS[name][id].getState ().state,
+          });
+
+          enableUpsert ();
+        }
+      }
+    }),
+  };
+}
+
 const doAsyncQuest = watt (function* (quest, dispatch, goblin) {
   const questDispatcher = function (type, payload = {}, error = false) {
     const action = createAction (type, payload, error);
@@ -63,14 +108,28 @@ function injectMessageDataGetter (msg) {
   };
 }
 
+function enableUpsert () {
+  UPSERT = true;
+}
+
+function disableUpsert () {
+  UPSERT = false;
+}
+
+// Upsert flag
+let UPSERT = true;
+
 // Quest registry
-const QUESTS = {};
+let QUESTS = {};
 
 // Goblins registry
-const GOBLINS = {};
+let GOBLINS = {};
+
+// Goblins sessions
+let SESSIONS = {};
 
 // Configs registry
-const CONFIGS = {};
+let CONFIGS = {};
 
 class Goblin {
   static registerQuest (goblinName, questName, quest) {
@@ -96,6 +155,9 @@ class Goblin {
           injectMessageDataGetter (msg);
           const id = msg.get ('id') || `${goblinName}@${uuidV4 ()}`;
           const goblin = Goblin.create (goblinName, id);
+          if (msg.get ('__recreate__')) {
+            disableUpsert ();
+          }
           goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
         };
         return;
@@ -149,6 +211,11 @@ class Goblin {
     if (!CONFIGS[goblinName]) {
       CONFIGS[goblinName] = {};
     }
+
+    if (!SESSIONS[goblinName]) {
+      SESSIONS[goblinName] = {};
+    }
+
     CONFIGS[goblinName] = {
       logicState,
       logicHandlers,
@@ -159,7 +226,10 @@ class Goblin {
       GOBLINS[goblinName] = {};
     }
 
-    return Goblin.getQuests (goblinName);
+    return {
+      handlers: Goblin.getQuests (goblinName),
+      context: getContextManager (),
+    };
   }
 
   static create (goblinName, uniqueIdentifier) {
@@ -186,6 +256,11 @@ class Goblin {
     if (!GOBLINS[goblinName]) {
       GOBLINS[goblinName] = {};
     }
+
+    if (GOBLINS[goblinName][goblinName]) {
+      throw new Error ('A single goblin exist');
+    }
+
     GOBLINS[goblinName][goblinName] = new Goblin (
       goblinName,
       goblinName,
@@ -240,6 +315,10 @@ class Goblin {
     const engineReducer = (state, action) => {
       if (!state) {
         return {};
+      }
+
+      if (action.type === '@@RELOAD_STATE') {
+        return action.state;
       }
 
       if (action.type === 'STARTING_QUEST') {
@@ -316,6 +395,14 @@ class Goblin {
 
   get usePersistence () {
     return Object.keys (this._persistenceConfig).length > 0;
+  }
+
+  setX (key, value) {
+    SESSIONS[this.goblinName][this.id][key] = value;
+  }
+
+  getX (key) {
+    return SESSIONS[this.goblinName][this.id][key];
   }
 
   getState () {
@@ -406,7 +493,7 @@ class Goblin {
       try {
         this.getState ().attachLogger (resp.log);
         result = yield QUESTS[this._goblinName][questName] (quest, msg);
-        if (this.goblinName !== 'warehouse') {
+        if (this.goblinName !== 'warehouse' && UPSERT) {
           quest.log.verb (`${this.goblinName} upserting`);
           quest.cmd ('warehouse.upsert', {
             branch: this._goblinId,
