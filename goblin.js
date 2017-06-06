@@ -58,23 +58,21 @@ function getContextManager () {
     },
     set: watt (function* (name, context, resp, next) {
       for (const id of context.ids) {
-        yield resp.command.send (
-          `${name}.create`,
-          {id, __recreate__: true},
-          next
-        );
+        yield resp.command.send (`${name}.create`, {id}, next);
         SESSIONS[name][id] = context.sessions[id];
-        GOBLINS[name][id].store.dispatch ({
+        const goblin = GOBLINS[name][id];
+        const state = context.states[id];
+        goblin.store.dispatch ({
           type: '@@RELOAD_STATE',
-          state: context.states[id],
+          state: state.logic,
         });
+
         if (name !== 'warehouse') {
+          const data = goblin.getState ().state;
           resp.command.send ('warehouse.upsert', {
             branch: id,
-            data: GOBLINS[name][id].getState ().state,
+            data: data,
           });
-
-          enableUpsert ();
         }
       }
     }),
@@ -107,17 +105,6 @@ function injectMessageDataGetter (msg) {
     return null;
   };
 }
-
-function enableUpsert () {
-  UPSERT = true;
-}
-
-function disableUpsert () {
-  UPSERT = false;
-}
-
-// Upsert flag
-let UPSERT = true;
 
 // Quest registry
 let QUESTS = {};
@@ -155,9 +142,6 @@ class Goblin {
           injectMessageDataGetter (msg);
           const id = msg.get ('id') || `${goblinName}@${uuidV4 ()}`;
           const goblin = Goblin.create (goblinName, id);
-          if (msg.get ('__recreate__')) {
-            disableUpsert ();
-          }
           goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
         };
         return;
@@ -317,10 +301,6 @@ class Goblin {
         return {};
       }
 
-      if (action.type === '@@RELOAD_STATE') {
-        return action.state;
-      }
-
       if (action.type === 'STARTING_QUEST') {
         return state;
       }
@@ -334,6 +314,10 @@ class Goblin {
     const logicReducer = (state, action) => {
       if (!state) {
         return {};
+      }
+
+      if (action.type === '@@RELOAD_STATE') {
+        return action.state;
       }
 
       if (logicHandlers[action.type]) {
@@ -493,7 +477,7 @@ class Goblin {
       try {
         this.getState ().attachLogger (resp.log);
         result = yield QUESTS[this._goblinName][questName] (quest, msg);
-        if (this.goblinName !== 'warehouse' && UPSERT) {
+        if (this.goblinName !== 'warehouse') {
           quest.log.verb (`${this.goblinName} upserting`);
           quest.cmd ('warehouse.upsert', {
             branch: this._goblinId,
