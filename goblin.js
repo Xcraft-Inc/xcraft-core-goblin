@@ -49,6 +49,7 @@ function getContextManager () {
         ids.push (k);
         states[k] = GOBLINS[name][k].store.getState ();
       });
+      //TODO: Call delete
       return {
         states,
         ids,
@@ -296,6 +297,7 @@ class Goblin {
     this._goblinId = goblinId;
     this._goblinName = goblinName;
     this._logger = require ('xcraft-core-log') (goblinName, null);
+    this._deferrable = [];
     this._persistence = new Persistence (
       path.join (xConfig.xcraftRoot, 'var/ripley'),
       this._goblinName
@@ -402,11 +404,18 @@ class Goblin {
   }
 
   setX (key, value) {
+    if (!SESSIONS[this.goblinName][this.id]) {
+      SESSIONS[this.goblinName][this.id] = {};
+    }
     SESSIONS[this.goblinName][this.id][key] = value;
   }
 
   getX (key) {
     return SESSIONS[this.goblinName][this.id][key];
+  }
+
+  delX (key) {
+    delete SESSIONS[this.goblinName][this.id][key];
   }
 
   getState () {
@@ -419,14 +428,13 @@ class Goblin {
     this.store.dispatch (action);
   }
 
-  dispose (action) {
-    if (this._afterEffects[action]) {
-      this._afterEffects[action].dispose ();
-      delete this._afterEffects[action];
-    }
+  defer (action) {
+    this._deferrable.push (action);
   }
 
   injectQuestBusHelpers (quest, resp) {
+    quest._deferrable = [];
+    quest.defer = func => quest._deferrable.push (func);
     quest.resp = resp;
     quest.log = resp.log;
     quest.cmd = watt (function* (cmd, args, next) {
@@ -435,6 +443,15 @@ class Goblin {
         args = null;
       }
       const msg = yield resp.command.send (cmd, args, next);
+      if (cmd.endsWith ('.create')) {
+        return {
+          dispose: () =>
+            quest.cmd (`${cmd.replace ('.create', '')}.delete`, {
+              id: msg.data,
+            }),
+          id: msg.data,
+        };
+      }
       return msg.data;
     });
     quest.evt = (customed, payload) => {
@@ -464,7 +481,6 @@ class Goblin {
     return watt (function* (quest) {
       injectMessageDataGetter (msg);
       this.injectQuestBusHelpers (quest, resp);
-
       quest.loadState = watt (function* (next) {
         quest.log.verb ('Loading state...');
         if (this.usePersistence) {
@@ -497,6 +513,9 @@ class Goblin {
       try {
         this.getState ().attachLogger (resp.log);
         result = yield QUESTS[this._goblinName][questName] (quest, msg);
+        if (questName === 'create' && !result) {
+          result = this._goblinId;
+        }
         if (this.goblinName !== 'warehouse') {
           quest.log.verb (`${this.goblinName} upserting`);
           quest.cmd ('warehouse.upsert', {
@@ -521,6 +540,16 @@ class Goblin {
         resp.events.send (`${this.goblinName}.${questName}.finished`, result);
         quest.dispatch ('ENDING_QUEST');
         this.getState ().detachLogger ();
+        //QUEST DEFER SCOPED
+        while (quest._deferrable.length > 0) {
+          yield quest._deferrable.pop () ();
+        }
+        //GOBLIN DELETE QUEST DEFER SCOPED
+        if (questName === 'delete') {
+          while (this._deferrable.length > 0) {
+            yield this._deferrable.pop () ();
+          }
+        }
       }
     });
   }
