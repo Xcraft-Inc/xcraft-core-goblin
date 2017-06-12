@@ -120,17 +120,37 @@ let CONFIGS = {};
 
 class Goblin {
   static registerQuest (goblinName, questName, quest) {
+    const xUtils = require ('xcraft-core-utils');
+    const params = xUtils.reflect.funcParams (quest);
+
+    /* Extract the parameters available in the msg [m] object and spreads
+     * to the real command handler.
+     * The first parameter is always the quest and the last can be the callback
+     * function (`next` according to watt).
+     */
+    const _quest = (q, m, n) => {
+      const args = params
+        .filter (param => !/^(quest|next)$/.test (param))
+        .map (param => m.get (param));
+
+      args.unshift (q);
+      if (n) {
+        args.push (n);
+      }
+
+      return quest (...args);
+    };
+
     if (!QUESTS[goblinName]) {
       QUESTS[goblinName] = {};
     }
     if (!isGenerator (quest)) {
-      QUESTS[goblinName][questName] = watt (function* (q, msg, next) {
-        return quest (q, msg);
-        //yield next (null, res);
+      QUESTS[goblinName][questName] = watt (function* (q, msg) {
+        return _quest (q, msg);
       });
       return;
     }
-    QUESTS[goblinName][questName] = watt (quest);
+    QUESTS[goblinName][questName] = watt (_quest);
   }
 
   static getQuests (goblinName) {
