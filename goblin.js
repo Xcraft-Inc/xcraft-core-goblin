@@ -223,6 +223,36 @@ class Goblin {
     return quests;
   }
 
+  static getRC (goblinName) {
+    const rc = {};
+
+    Object.keys (QUESTS[goblinName]).forEach (questName => {
+      const params = {};
+      let desc = `${questName} for ${goblinName}`;
+
+      const list = QUESTSMETA[goblinName][questName].params;
+      if (list.length >= 2) {
+        params.required = list[0];
+        params.optional = list[1];
+        if (list.length >= 3) {
+          desc += ` (parameters: ${list.slice (2)} unsupported by shellcraft)`;
+        }
+      } else if (list.length === 1) {
+        params.required = list[0];
+      }
+
+      rc[questName] = {
+        parallel: true,
+        desc,
+        options: {
+          params,
+        },
+      };
+    });
+
+    return rc;
+  }
+
   static configure (goblinName, logicState, logicHandlers, persistenceConfig) {
     if (!CONFIGS[goblinName]) {
       CONFIGS[goblinName] = {};
@@ -245,6 +275,7 @@ class Goblin {
     return {
       handlers: Goblin.getQuests (goblinName),
       context: getContextManager (),
+      rc: Goblin.getRC (goblinName),
     };
   }
 
