@@ -11,15 +11,84 @@ With goblin you can craft some redux uService on top of the Orcish Xcraft toolch
 
 This package provide a thin API and conventions for building your first goblin.
 
-# Quest handlers
+# Goblins
+
+>When you implement a goblin, you must think like a goblin. 
+
+## Goblin instances
+
+By default goblins are instantiated by a create command:  `const extractor = yield quest.create ('gold-extractor', payload)`
+
+When an instance is created in a quest, your goblin must control the deletion of this goblin.
+
+Fortunatly we have a simple `defer ()` method available on quest and goblin.
+
+### The quest.create (namespace, args) command
+
+Under the hood, `quest.create` send a `quest.cmd ('gold-extractor.create', {...payload})` and return a object containing id and all wrapped public quests.
+
+
+### Single instance
+
+Some goblins can be created as singleton. In the case `quest.create` will not work. You must send a command to the goblin directly with `quest.cmd`.
+
+
+### Deleting goblins instances with defer ()
+
+Just after creating a instance with `quest.create` you can register a defer call for deleting the instance at the right moment.
+
+#### quest lifetime scope
+
+We use `quest.defer()` for regisering a func to be run when the current quest finish
 
 ```js
-goblin.registerQuest ('example', (quest, msg) => {
+// Example of use for defering when we leave the quest
+goblin.registerQuest ('test', (quest, msg) => {
 
-  quest.dispatch ('mutate', {my: 'data'});
+  const extractor = yield quest.create ('gold-extractor');
+  // We defer the delete quest, after this quest
+  quest.defer (extractor.delete);
+  const gold = extractor.extract ('http://mineofgold.com');
+  ...
+});
+```
 
-  // dispatch ('example' with automatic payload:
-  // msg.data -> action.meta
+#### goblin lifetime scope
+
+We use `quest.goblin.defer()` for registering a func to be run after the delete quest of our instance was run
+
+```js
+// Example of use for defering when we leave delete this instance
+goblin.registerQuest ('create', (quest, msg) => {
+
+  const extractor = yield quest.create ('gold-extractor');
+  // We defer the delete quest, after our goblin delete quest run
+  quest.goblin.defer (extractor.delete);
+  const gold = extractor.extract ('http://mineofgold.com');
+  ...
+});
+```
+
+# Quests
+
+A quest is a powerfull running context for dealing with other goblins. You can create goblins via commands, sending events for signaling some status, waiting for other goblins events and dispatch actions for modifing your state.
+
+From another point of view, quests are providing lifetime handlers for a goblin instance,
+the creation of a goblin instance is always handled by the `create` quest and the `delete` quest provide the deletion impl. of an instance.
+
+Other quests, are like methods of an instance, `add`, `remove`, `open`, `close` etc...
+
+
+## Quest handlers
+
+```js
+
+// Exemple of a create quest
+goblin.registerQuest ('create', (quest, id, somedata) => {
+
+  quest.dispatch ('mutate', {somedata});
+
+  // dispatch ('create' with automatic payload:
   quest.do ();
 
   // logging
@@ -31,7 +100,7 @@ goblin.registerQuest ('example', (quest, msg) => {
   });
 
   // evt sending
-  // the final topic is prefixed with you goblin name
+  // the final topic is prefixed with your goblin name
   quest.evt ('bim.bam.boom', {some: payload});
 
   // (sub|unsub) scribe to evt's

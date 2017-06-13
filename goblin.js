@@ -437,23 +437,53 @@ class Goblin {
     quest.defer = func => quest._deferrable.push (func);
     quest.resp = resp;
     quest.log = resp.log;
+
     quest.cmd = watt (function* (cmd, args, next) {
       if (arguments.length === 2) {
         next = args;
         args = null;
       }
       const msg = yield resp.command.send (cmd, args, next);
-      if (cmd.endsWith ('.create')) {
-        return {
-          dispose: () =>
-            quest.cmd (`${cmd.replace ('.create', '')}.delete`, {
-              id: msg.data,
-            }),
-          id: msg.data,
-        };
-      }
       return msg.data;
     });
+
+    quest.create = watt (function* (namespace, args, next) {
+      const id = yield quest.cmd (`${namespace}.create`, args, next);
+      //Inject goblins API
+      let api = {
+        id,
+      };
+      const goblin = /^[a-z\-]+/.exec (namespace)[0];
+      Object.keys (QUESTS[goblin])
+        .filter (
+          // Exclude create and _private calls and take only namespace calls
+          questName =>
+            `${goblin}.${questName}`.startsWith (namespace) &&
+            !questName.match (/(^create$|^.+\.create$|^_.+|\._.+)/)
+        )
+        .map (questName => {
+          return {
+            call: questName.replace (/^[a-z\-]+\./, ''),
+            questName,
+          };
+        })
+        .forEach (
+          item =>
+            (api[item.call] = payload => {
+              return quest.cmd (
+                `${goblin}.${item.questName}`,
+                Object.assign (
+                  {
+                    id,
+                  },
+                  payload
+                )
+              );
+            })
+        );
+      return api;
+    });
+
     quest.evt = (customed, payload) => {
       if (!payload) {
         payload = {};
