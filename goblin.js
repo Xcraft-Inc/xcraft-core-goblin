@@ -492,8 +492,8 @@ class Goblin {
       return msg.data;
     });
 
-    quest.create = watt (function* (namespace, args, next) {
-      const id = yield quest.cmd (`${namespace}.create`, args, next);
+    quest.create = watt (function* (namespace, args) {
+      const id = yield quest.cmd (`${namespace}.create`, args);
       //Inject goblins API
       let api = {
         id,

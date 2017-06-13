@@ -212,30 +212,10 @@ const goblin = new Goblin (goblinName, logicState, logicHandlers);
 
 ## Part 1: providing quest
 
-Create a folder named `goblin-treasure` with two files:
-
-A `rc.json` file for describing your quest:
-
-```json
-{
-  "cashin": {
-    "desc": "Add cash to your treasure!",
-    "options": {
-      "params": {
-        "required": "amount"
-      }
-    }
-  }
-}
-```
-
-and a `treasure.js` file for registering your namespace and quests on the Xcraft server:
+Create a folder named `goblin-treasure` with a `treasure.js` file for registering your namespace and quests on the Xcraft server:
 
 ```js
 'use strict';
-
-const path    = require ('path');
-const service = require ('./lib/service.js');
 
 /**
  * Retrieve the list of available commands.
@@ -243,19 +223,15 @@ const service = require ('./lib/service.js');
  * @returns {Object} The list and definitions of commands.
  */
 exports.xcraftCommands = function () {
-  const xUtils = require ('xcraft-core-utils');
-  return {
-    handlers: service,
-    rc: xUtils.json.fromFile (path.join (__dirname, './rc.json'))
-  };
+  return require (`./widgets/${require ('path').basename (__filename, '.js')}/service.js`);
 };
 ```
 
-You must now implement the quest in `lib/service.js`
+You must now implement the quest in `widgets/treasure/service.js`
 
 ## Part 2: quest implementation with goblin
 
-Create a file in a `lib` subfolder named `service.js`.
+Create a file in a `/widgets/treasure/` subfolder named `service.js`.
 
 Extract the namespace and require the Goblin:
 
