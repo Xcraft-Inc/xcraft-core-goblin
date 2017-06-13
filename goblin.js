@@ -129,11 +129,12 @@ class Goblin {
     }
 
     const xUtils = require ('xcraft-core-utils');
-    QUESTSMETA[goblinName][questName] = {
-      params: xUtils.reflect
-        .funcParams (quest)
-        .filter (param => !/^(quest|next)$/.test (param)),
-    };
+    if (!QUESTSMETA[goblinName][questName]) {
+      QUESTSMETA[goblinName][questName] = {};
+    }
+    QUESTSMETA[goblinName][questName].params = xUtils.reflect
+      .funcParams (quest)
+      .filter (param => !/^(quest|next)$/.test (param));
 
     /* Extract the parameters available in the msg [m] object and spreads
      * to the real command handler.
