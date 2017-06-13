@@ -5,94 +5,108 @@ Xcraft uService API
 
 # Welcome on board!
 
->Goblins are small, green (or yellow-green) creatures with pointy features and high intelligence (though often little common sense). Goblins speak Goblin, Orcish, and Common. Goblins know myriad languages in order to trade with as many races as possible.
+> Goblins are small, green (or yellow-green) creatures with pointy features and
+> high intelligence (though often little common sense). Goblins speak Goblin,
+> Orcish, and Common. Goblins know myriad languages in order to trade with as
+> many races as possible.
 
-With goblin you can craft some redux uService on top of the Orcish Xcraft toolchain infrastructure.
+With goblin you can craft some redux uService on top of the Orcish Xcraft
+toolchain infrastructure.
 
 This package provide a thin API and conventions for building your first goblin.
 
 # Goblins
 
->When you implement a goblin, you must think like a goblin. 
+> When you implement a goblin, you must think like a goblin. 
 
 ## Goblin instances
 
-By default goblins are instantiated by a create command:  `const extractor = yield quest.create ('gold-extractor', payload)`
+By default, the goblins are instantiated by a create command:
+`const extractor = yield quest.create ('gold-extractor', payload)`
 
-When an instance is created in a quest, your goblin must control the deletion of this goblin.
+When an instance is created in a quest, your goblin must control the deletion
+of the newly created goblin.
 
-Fortunatly we have a simple `defer ()` method available on quest and goblin.
+Fortunatly we have a simple `defer ()` method (mostly inspired by **golang**)
+available on quest and goblin.
 
-### The quest.create (namespace, args) command
+### The `quest.create (namespace, args)` command
 
-Under the hood, `quest.create` send a `quest.cmd ('gold-extractor.create', {...payload})` and return a object containing id and all wrapped public quests.
-
+Under the hood, `quest.create` sends a `quest.cmd ('gold-extractor.create', {...payload})`
+and returns an object containing `id` and all wrapped public quests.
 
 ### Single instance
 
-Some goblins can be created as singleton. In the case `quest.create` will not work. You must send a command to the goblin directly with `quest.cmd`.
+Some goblins can be created as singleton. In this case, `quest.create` will
+not work. You must send a command to the goblin directly with `quest.cmd`.
 
+### Deleting goblins instances with `defer ()`
 
-### Deleting goblins instances with defer ()
-
-Just after creating a instance with `quest.create` you can register a defer call for deleting the instance at the right moment.
+Just after creating an instance with `quest.create` you can register a `defer`
+call for deleting the instance at the right moment.
 
 #### quest lifetime scope
 
-We use `quest.defer()` for regisering a func to be run when the current quest finish
+We use `quest.defer ()` for registering a function to be run when the current
+quest is finished.
 
 ```js
 // Example of use for defering when we leave the quest
 goblin.registerQuest ('test', (quest, msg) => {
-
   const extractor = yield quest.create ('gold-extractor');
   // We defer the delete quest, after this quest
   quest.defer (extractor.delete);
   const gold = extractor.extract ('http://mineofgold.com');
-  ...
+  /* ... */
 });
 ```
 
 #### goblin lifetime scope
 
-We use `quest.goblin.defer()` for registering a func to be run after the delete quest of our instance was run
+We use `quest.goblin.defer ()` for registering a function to be run after the
+quest deletion of our goblin instance.
 
 ```js
-// Example of use for defering when we leave delete this instance
+// Example of use for defering when we leave the delete of this instance
 goblin.registerQuest ('create', (quest, msg) => {
-
   const extractor = yield quest.create ('gold-extractor');
   // We defer the delete quest, after our goblin delete quest run
   quest.goblin.defer (extractor.delete);
   const gold = extractor.extract ('http://mineofgold.com');
-  ...
+  /* ... */
 });
 ```
 
 # Quests
 
-A quest is a powerfull running context for dealing with other goblins. You can create goblins, running dedicated commands, sending events for signaling some status, waiting for other goblins events and dispatch actions for modifing your state.
+A quest is a powerfull running context for dealing with other goblins. You can
+create goblins, running dedicated commands, sending events for signaling some
+status, waiting for other goblins events and dispatch actions for modifing
+your state.
 
-From another point of view, quests are providing lifetime handlers for a goblin instance,
-the creation of a goblin instance is always handled by the `create` quest and the `delete` quest provide the deletion impl. of an instance.
+From another point of view, quests are providing lifetime handlers for a goblin
+instance, the creation of a goblin instance is always handled by the `create`
+quest and the `delete` quest provides the deletion implementation of an
+instance.
 
-Other quests, are like methods of an instance, `add`, `remove`, `open`, `close` etc...
+Other quests, are like methods of an instance, `add`, `remove`, `open`,
+`close` etc...
 
 ## create and delete quests
 
-When you configure a goblins, you must register a create and a delete quest.
-This is not true for a single instance goblin.
+When you configure a goblin, you must register a `create` and a `delete` quest.
+This is not true for a single instance (singleton) goblin.
 
 ### Widget example
 
-We create a widget goblin named `panel`, we register and impl. :
+We create a widget goblin named `panel`, we register and implement:
 
-- create (required!)
-- delete (required!)
-- toggle
-- set-title
+- `create` (required!)
+- `delete` (required!)
+- `toggle`
+- `set-title`
 
-#### usage for this exemple:
+#### usage for this example:
 
 ```js
 const panel = yield quest.create ('panel');
@@ -102,14 +116,16 @@ panel.setTitle ({title: 'Hello World'});
 ```
 
 ### Single instance service example
-We create a single instance goblin named `window-manager`, we register and impl:
 
-- init
-- win.create (required!)
-- win.delete (required!)
-- win.show
+We create a single instance goblin named `window-manager`, we register and
+implement:
 
-#### usage for this exemple:
+- `init`
+- `win.create` (required!)
+- `win.delete` (required!)
+- `win.show`
+
+#### usage for this example:
 
 ```js
 yield quest.cmd ('wm.init');
@@ -118,14 +134,11 @@ quest.goblin.defer (win.delete);
 win.show ();
 ```
 
-
 ## Quest handlers
 
 ```js
-
-// Exemple of a create quest
+// Example of a `create` quest
 goblin.registerQuest ('create', (quest, somedata) => {
-
   quest.dispatch ('mutate', {somedata});
 
   // dispatch 'create' with automatic payload:
@@ -139,11 +152,11 @@ goblin.registerQuest ('create', (quest, somedata) => {
     someparam: 'value',
   });
 
-  // evt sending
+  // event sending
   // the final topic is prefixed with your goblin name
   quest.evt ('bim.bam.boom', {some: payload});
 
-  // (sub|unsub) scribe to evt's
+  // (sub|unsub) scribe to events
   // full topic name is required
   const unsub = quest.sub ('somegoblin.topic', handler => yo);
   unsub ();
@@ -159,7 +172,7 @@ goblin.registerQuest ('create', (quest, somedata) => {
 });
 ```
 
-# Goblin state persitence "feat. Ellen Riplay"
+# Goblin state persistence "feat. Ellen Ripley"
 
 ```js
 const persistenceConfig = {
@@ -175,7 +188,7 @@ const persistenceConfig = {
   }
 }
 
-// Give the persistence config at last arg.
+// Give the persistence config at last argument
 const goblin = new Goblin (goblinName, logicState, logicHandlers, persistenceConfig);
 ```
 
@@ -190,8 +203,8 @@ const logicState = new Goblin.Shredder ({
 
 const logicHandlers = {
   cashin: (state, action) => {
-
     state = state.set ('collection.key', {bid: ['ule','oche']});
+
     if (state.includes ('collection.key[0]', 10)) {
       const key = state.get (`collection.key.bid[0]`, 2);
       state = state.set ('collection.lol', key);
@@ -200,19 +213,17 @@ const logicHandlers = {
 
     return state;
   }
+};
 
 const goblin = new Goblin (goblinName, logicState, logicHandlers);
-
-
 ```
-
-
 
 # Your first goblin
 
 ## Part 1: providing quest
 
-Create a folder named `goblin-treasure` with a `treasure.js` file for registering your namespace and quests on the Xcraft server:
+Create a folder named `goblin-treasure` with a `treasure.js` file for
+registering your namespace and quests on the Xcraft server:
 
 ```js
 'use strict';
@@ -227,13 +238,13 @@ exports.xcraftCommands = function () {
 };
 ```
 
-You must now implement the quest in `widgets/treasure/service.js`
+You must now implement the quest in `./widgets/treasure/service.js`.
 
 ## Part 2: quest implementation with goblin
 
-Create a file in a `/widgets/treasure/` subfolder named `service.js`.
+Create a file in a `./widgets/treasure/` subfolder named `service.js`.
 
-Extract the namespace and require the Goblin:
+Extract the namespace and `require` the Goblin:
 
 ```js
 'use strict';
@@ -242,7 +253,6 @@ const path = require ('path');
 const goblinName = path.basename (module.parent.filename, '.js');
 
 const Goblin = require ('xcraft-core-goblin');
-
 ```
 
 Define the initial state of the goblin:
@@ -279,6 +289,6 @@ goblin.registerQuest ('cashin', function * (quest, msg) {
   quest.do ();
 });
 
-// We must exporting quests
+// We must export the quests
 module.exports = goblin.quests;
 ```
