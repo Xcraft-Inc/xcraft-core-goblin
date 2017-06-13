@@ -110,6 +110,9 @@ function injectMessageDataGetter (msg) {
 // Quest registry
 let QUESTS = {};
 
+// Quests metadata for handlers
+const QUESTSMETA = {};
+
 // Goblins registry
 let GOBLINS = {};
 
@@ -121,8 +124,16 @@ let CONFIGS = {};
 
 class Goblin {
   static registerQuest (goblinName, questName, quest) {
+    if (!QUESTSMETA[goblinName]) {
+      QUESTSMETA[goblinName] = {};
+    }
+
     const xUtils = require ('xcraft-core-utils');
-    const params = xUtils.reflect.funcParams (quest);
+    QUESTSMETA[goblinName][questName] = {
+      params: xUtils.reflect
+        .funcParams (quest)
+        .filter (param => !/^(quest|next)$/.test (param)),
+    };
 
     /* Extract the parameters available in the msg [m] object and spreads
      * to the real command handler.
@@ -130,9 +141,7 @@ class Goblin {
      * function (`next` according to watt).
      */
     const _quest = (q, m, n) => {
-      const args = params
-        .filter (param => !/^(quest|next)$/.test (param))
-        .map (param => m.get (param));
+      const args = QUESTSMETA[goblinName][questName].params.map (m.get);
 
       args.unshift (q);
       if (n) {
