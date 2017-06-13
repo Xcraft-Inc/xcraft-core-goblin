@@ -110,6 +110,9 @@ function injectMessageDataGetter (msg) {
 // Quest registry
 let QUESTS = {};
 
+// Quests metadata for handlers
+const QUESTSMETA = {};
+
 // Goblins registry
 let GOBLINS = {};
 
@@ -121,8 +124,16 @@ let CONFIGS = {};
 
 class Goblin {
   static registerQuest (goblinName, questName, quest) {
+    if (!QUESTSMETA[goblinName]) {
+      QUESTSMETA[goblinName] = {};
+    }
+
     const xUtils = require ('xcraft-core-utils');
-    const params = xUtils.reflect.funcParams (quest);
+    QUESTSMETA[goblinName][questName] = {
+      params: xUtils.reflect
+        .funcParams (quest)
+        .filter (param => !/^(quest|next)$/.test (param)),
+    };
 
     /* Extract the parameters available in the msg [m] object and spreads
      * to the real command handler.
@@ -130,9 +141,7 @@ class Goblin {
      * function (`next` according to watt).
      */
     const _quest = (q, m, n) => {
-      const args = params
-        .filter (param => !/^(quest|next)$/.test (param))
-        .map (param => m.get (param));
+      const args = QUESTSMETA[goblinName][questName].params.map (m.get);
 
       args.unshift (q);
       if (n) {
@@ -155,7 +164,8 @@ class Goblin {
   }
 
   static getQuests (goblinName) {
-    let quests = {};
+    const quests = {};
+
     Object.keys (QUESTS[goblinName]).forEach (questName => {
       //Handle create
       if (questName === 'create') {
@@ -209,7 +219,38 @@ class Goblin {
         }
       };
     });
+
     return quests;
+  }
+
+  static getRC (goblinName) {
+    const rc = {};
+
+    Object.keys (QUESTS[goblinName]).forEach (questName => {
+      const params = {};
+      let desc = `${questName} for ${goblinName}`;
+
+      const list = QUESTSMETA[goblinName][questName].params;
+      if (list.length >= 2) {
+        params.required = list[0];
+        params.optional = list[1];
+        if (list.length >= 3) {
+          desc += ` (parameters: ${list.slice (2)} unsupported by shellcraft)`;
+        }
+      } else if (list.length === 1) {
+        params.required = list[0];
+      }
+
+      rc[questName] = {
+        parallel: true,
+        desc,
+        options: {
+          params,
+        },
+      };
+    });
+
+    return rc;
   }
 
   static configure (goblinName, logicState, logicHandlers, persistenceConfig) {
@@ -234,6 +275,7 @@ class Goblin {
     return {
       handlers: Goblin.getQuests (goblinName),
       context: getContextManager (),
+      rc: Goblin.getRC (goblinName),
     };
   }
 
