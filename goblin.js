@@ -164,7 +164,8 @@ class Goblin {
   }
 
   static getQuests (goblinName) {
-    let quests = {};
+    const quests = {};
+
     Object.keys (QUESTS[goblinName]).forEach (questName => {
       //Handle create
       if (questName === 'create') {
