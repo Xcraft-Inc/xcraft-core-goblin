@@ -219,6 +219,7 @@ class Goblin {
         }
       };
     });
+
     return quests;
   }
 
