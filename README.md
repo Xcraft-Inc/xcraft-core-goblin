@@ -71,12 +71,52 @@ goblin.registerQuest ('create', (quest, msg) => {
 
 # Quests
 
-A quest is a powerfull running context for dealing with other goblins. You can create goblins via commands, sending events for signaling some status, waiting for other goblins events and dispatch actions for modifing your state.
+A quest is a powerfull running context for dealing with other goblins. You can create goblins, running dedicated commands, sending events for signaling some status, waiting for other goblins events and dispatch actions for modifing your state.
 
 From another point of view, quests are providing lifetime handlers for a goblin instance,
 the creation of a goblin instance is always handled by the `create` quest and the `delete` quest provide the deletion impl. of an instance.
 
 Other quests, are like methods of an instance, `add`, `remove`, `open`, `close` etc...
+
+## create and delete quests
+
+When you configure a goblins, you must register a create and a delete quest.
+This is not true for a single instance goblin.
+
+### Widget example
+
+We create a widget goblin named `panel`, we register and impl. :
+
+- create (required!)
+- delete (required!)
+- toggle
+- set-title
+
+#### usage for this exemple:
+
+```js
+const panel = yield quest.create ('panel');
+quest.goblin.defer (panel.delete);
+panel.toggle ();
+panel.setTitle ({title: 'Hello World'});
+```
+
+### Single instance service example
+We create a single instance goblin named `window-manager`, we register and impl:
+
+- init
+- win.create (required!)
+- win.delete (required!)
+- win.show
+
+#### usage for this exemple:
+
+```js
+yield quest.cmd ('wm.init');
+const win = yield quest.create ('wm.win');
+quest.goblin.defer (win.delete);
+win.show ();
+```
 
 
 ## Quest handlers
@@ -84,15 +124,15 @@ Other quests, are like methods of an instance, `add`, `remove`, `open`, `close` 
 ```js
 
 // Exemple of a create quest
-goblin.registerQuest ('create', (quest, id, somedata) => {
+goblin.registerQuest ('create', (quest, somedata) => {
 
   quest.dispatch ('mutate', {somedata});
 
-  // dispatch ('create' with automatic payload:
+  // dispatch 'create' with automatic payload:
   quest.do ();
 
   // logging
-  quest.log.info ('Subscription done!');
+  quest.log.info ('done!');
 
   // cmd sending
   yield quest.cmd ('somegoblin.somequest', {
@@ -110,6 +150,12 @@ goblin.registerQuest ('create', (quest, id, somedata) => {
 
   // wait on an event
   yield quest.sub.wait ('somegoblin.topic');
+
+  // Create widget via goblins
+  const panel = yield quest.create ('panel');
+  quest.goblin.defer (panel.delete);
+  panel.toggle ();
+  panel.setTitle ({title: 'Hello World'});
 });
 ```
 
