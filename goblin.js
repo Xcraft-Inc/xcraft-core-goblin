@@ -6,6 +6,10 @@ const Shredder = require ('xcraft-core-shredder');
 const Persistence = require ('./lib/persistence.js');
 const uuidV4 = require ('uuid/v4');
 
+function jsifyQuestName (quest) {
+  return quest.replace (/-([a-z])/g, (m, g1) => g1.toUpperCase ());
+}
+
 function createAction (type, payload, meta, error) {
   const action = isFunction (type)
     ? type
@@ -508,7 +512,7 @@ class Goblin {
         )
         .map (questName => {
           return {
-            call: questName.replace (/^[a-z\-]+\./, ''),
+            call: jsifyQuestName (questName.replace (/^[a-z\-]+\./, '')),
             questName,
           };
         })
