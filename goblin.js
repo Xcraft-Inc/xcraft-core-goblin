@@ -233,20 +233,12 @@ class Goblin {
 
     Object.keys (QUESTS[goblinName]).forEach (questName => {
       const params = {};
-      let desc = !questName.startsWith ('_')
+      const desc = !questName.startsWith ('_')
         ? `${questName} for ${goblinName}`
         : null;
 
       const list = QUESTSMETA[goblinName][questName].params;
-      if (list.length >= 2) {
-        params.required = list[0];
-        params.optional = list[1];
-        if (desc && list.length >= 3) {
-          desc += ` (parameters: ${list.slice (2)} unsupported by shellcraft)`;
-        }
-      } else if (list.length === 1) {
-        params.required = list[0];
-      }
+      params.required = list;
 
       rc[questName] = {
         parallel: true,
