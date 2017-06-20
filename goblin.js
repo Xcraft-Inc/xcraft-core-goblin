@@ -488,6 +488,42 @@ class Goblin {
       return msg.data;
     });
 
+    quest.use = function (id, namespace) {
+      //Inject goblins API
+      let api = {
+        id,
+      };
+      const goblin = /^[a-z\-]+/.exec (namespace)[0];
+      Object.keys (QUESTS[goblin])
+        .filter (
+          // Exclude create and _private calls and take only namespace calls
+          questName =>
+            `${goblin}.${questName}`.startsWith (namespace) &&
+            !questName.match (/(^create$|^.+\.create$|^_.+|\._.+)/)
+        )
+        .map (questName => {
+          return {
+            call: jsifyQuestName (questName.replace (/^[a-z\-]+\./, '')),
+            questName,
+          };
+        })
+        .forEach (
+          item =>
+            (api[item.call] = payload => {
+              return quest.cmd (
+                `${goblin}.${item.questName}`,
+                Object.assign (
+                  {
+                    id,
+                  },
+                  payload
+                )
+              );
+            })
+        );
+      return api;
+    };
+
     quest.create = watt (function* (namespace, args) {
       const id = yield quest.cmd (`${namespace}.create`, args);
       //Inject goblins API
