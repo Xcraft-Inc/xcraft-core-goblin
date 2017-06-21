@@ -579,8 +579,11 @@ class Goblin {
     quest.sub.wait = watt (function* (topic, next) {
       const _next = next.parallel ();
       const unsubWait = resp.events.subscribe (topic, msg => _next (null, msg));
-      yield next.sync ();
+      const res = yield next.sync ();
       unsubWait ();
+      if (res.length > 0) {
+        return res[0].data;
+      }
     });
   }
 
