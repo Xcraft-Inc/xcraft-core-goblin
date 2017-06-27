@@ -638,16 +638,16 @@ class Goblin {
             });
           }
         }
+        // FINISHED
+        resp.events.send (`${this.goblinName}.${questName}.finished`, result);
       } catch (err) {
-        if (err) {
-          quest.log.err (`quest [${questName}] failure: ${err}`);
-          if (err.stack) {
-            quest.log.err (`stack: ${err.stack}`);
-          }
+        resp.events.send (`${this.goblinName}.${questName}.error`, err);
+        quest.log.err (`quest [${questName}] failure: ${err}`);
+        if (err.stack) {
+          quest.log.err (`stack: ${err.stack}`);
         }
       } finally {
         quest.log.verb ('Ending quest...');
-        resp.events.send (`${this.goblinName}.${questName}.finished`, result);
         quest.dispatch ('ENDING_QUEST');
         this.getState ().detachLogger ();
         //QUEST DEFER SCOPED
