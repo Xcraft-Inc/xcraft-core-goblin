@@ -120,6 +120,9 @@ const QUESTSMETA = {};
 // Goblins registry
 let GOBLINS = {};
 
+// Goblins owned usable services
+let GOBLINS_USES = {};
+
 // Goblins sessions
 let SESSIONS = {};
 
@@ -232,6 +235,10 @@ class Goblin {
         //Handle delete
         if (questName === 'delete') {
           delete GOBLINS[goblinName][msg.data.id];
+          for (const g in GOBLINS_USES[goblinName][msg.data.id]) {
+            resp.command.send (`${g.namespace}.delete`);
+          }
+          delete GOBLINS_USES[goblinName][msg.data.id];
           return;
         }
       };
@@ -281,6 +288,7 @@ class Goblin {
 
     if (!GOBLINS[goblinName]) {
       GOBLINS[goblinName] = {};
+      GOBLINS_USES[goblinName] = {};
     }
 
     return {
@@ -293,6 +301,7 @@ class Goblin {
   static create (goblinName, uniqueIdentifier) {
     if (!GOBLINS[goblinName]) {
       GOBLINS[goblinName] = {};
+      GOBLINS_USES[goblinName] = {};
     }
     // Single ?
     if (GOBLINS[goblinName][goblinName]) {
@@ -306,13 +315,14 @@ class Goblin {
       CONFIGS[goblinName].logicHandlers,
       CONFIGS[goblinName].persistenceConfig
     );
-
+    GOBLINS_USES[goblinName][goblinId] = {};
     return GOBLINS[goblinName][goblinId];
   }
 
   static createSingle (goblinName) {
     if (!GOBLINS[goblinName]) {
       GOBLINS[goblinName] = {};
+      GOBLINS_USES[goblinName] = {};
     }
 
     if (GOBLINS[goblinName][goblinName]) {
@@ -326,7 +336,7 @@ class Goblin {
       CONFIGS[goblinName].logicHandlers,
       CONFIGS[goblinName].persistenceConfig
     );
-
+    GOBLINS_USES[goblinName][goblinName] = {};
     return GOBLINS[goblinName][goblinName];
   }
 
@@ -457,6 +467,9 @@ class Goblin {
   }
 
   setX (key, value) {
+    if (value._dontKeepRefOnMe) {
+      throw new Error (`You cannot setX with ${key} value`);
+    }
     if (!SESSIONS[this.goblinName][this.id]) {
       SESSIONS[this.goblinName][this.id] = {};
     }
@@ -500,10 +513,15 @@ class Goblin {
       return msg.data;
     });
 
-    quest.use = function (id, namespace) {
+    quest.canUse = useKey => {
+      return GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id][useKey];
+    };
+
+    quest.useAs = function (namespace, id) {
       //Inject goblins API
       let api = {
         id,
+        _dontKeepRefOnMe: true,
       };
       const goblin = /^[a-z\-]+/.exec (namespace)[0];
       Object.keys (QUESTS[goblin])
@@ -536,11 +554,57 @@ class Goblin {
       return api;
     };
 
+    quest.use = function (useKey) {
+      if (!useKey) {
+        throw new Error (`Undefined useKey`);
+      }
+
+      if (!GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id][useKey]) {
+        throw new Error (
+          `Cannot use ${useKey} goblin in ${quest.goblin.goblinName}, usable goblins are:
+          ${JSON.stringify (GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id])}`
+        );
+      }
+
+      const {id, namespace} = GOBLINS_USES[quest.goblin.goblinName][
+        quest.goblin.id
+      ][useKey];
+
+      return quest.useAs (namespace, id);
+    };
+
     quest.create = watt (function* (namespace, args) {
+      let useRef = null;
+      let useKey = namespace;
+      if (namespace.indexOf ('@') !== -1) {
+        namespace = namespace.split ('@')[0];
+      }
+
+      if (
+        GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id] &&
+        GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id][useKey]
+      ) {
+        throw new Error (
+          `Goblin creation error in goblin ${quest.goblin.goblinName}: 
+          You already created a goblin with this namespace: ${namespace}, add '@useKey' after goblin name, ex: 
+          const b1 = yield quest.create ('button@1', {});
+          const b2 = yield quest.create ('button@2', {});
+          then in another quest:
+          const b1 = quest.use ('button@1');
+          const b2 = quest.use ('button@2');`
+        );
+      }
+      GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id][useKey] = {};
+      useRef = GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id][useKey];
+      useRef.namespace = namespace;
+
       const id = yield quest.cmd (`${namespace}.create`, args);
+      useRef.id = id;
+
       //Inject goblins API
       let api = {
         id,
+        _dontKeepRefOnMe: true,
       };
       const goblin = /^[a-z\-]+/.exec (namespace)[0];
       Object.keys (QUESTS[goblin])
