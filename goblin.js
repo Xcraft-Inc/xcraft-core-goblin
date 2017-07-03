@@ -188,7 +188,10 @@ class Goblin {
           resp.log.err (
             `You must call ${goblinName}.create before calling ${questName}`
           );
-          resp.events.send (`${goblinName}.${questName}.finished`, null);
+          resp.events.send (
+            `${goblinName}.${questName}.${msg.id}.finished`,
+            null
+          );
           return;
         }
 
@@ -201,18 +204,27 @@ class Goblin {
 
         if (!msg.data) {
           resp.log.err (`No id provided for ${goblinName}`);
-          resp.events.send (`${goblinName}.${questName}.finished`, null);
+          resp.events.send (
+            `${goblinName}.${questName}.${msg.id}.finished`,
+            null
+          );
           return;
         }
         if (!msg.data.id) {
           resp.log.err (`No id provided for ${goblinName}`);
-          resp.events.send (`${goblinName}.${questName}.finished`, null);
+          resp.events.send (
+            `${goblinName}.${questName}.${msg.id}.finished`,
+            null
+          );
           return;
         }
         const goblin = GOBLINS[goblinName][msg.data.id];
         if (!goblin) {
           resp.log.err (`Bad id ${msg.data.id} for ${goblinName}`);
-          resp.events.send (`${goblinName}.${questName}.finished`, null);
+          resp.events.send (
+            `${goblinName}.${questName}.${msg.id}.finished`,
+            null
+          );
           return;
         }
         goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
@@ -639,9 +651,15 @@ class Goblin {
           }
         }
         // FINISHED
-        resp.events.send (`${this.goblinName}.${questName}.finished`, result);
+        resp.events.send (
+          `${this.goblinName}.${questName}.${msg.id}.finished`,
+          result
+        );
       } catch (err) {
-        resp.events.send (`${this.goblinName}.${questName}.error`, err);
+        resp.events.send (
+          `${this.goblinName}.${questName}.${msg.id}.error`,
+          err
+        );
         quest.log.err (`quest [${questName}] failure: ${err}`);
         if (err.stack) {
           quest.log.err (`stack: ${err.stack}`);
