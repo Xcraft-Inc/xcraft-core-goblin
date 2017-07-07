@@ -573,19 +573,23 @@ class Goblin {
       return quest.useAs (namespace, id);
     };
 
-    quest.create = watt (function* (namespace, args) {
+    quest.createFor = watt (function* (goblinName, goblinId, namespace, args) {
       let useRef = null;
       let useKey = namespace;
       if (namespace.indexOf ('@') !== -1) {
         namespace = namespace.split ('@')[0];
       }
 
+      if (!GOBLINS_USES[goblinName][goblinId]) {
+        throw new Error (`Unknow goblin ${goblinName} with id ${goblinId}`);
+      }
+
       if (
-        GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id] &&
-        GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id][useKey]
+        GOBLINS_USES[goblinName][goblinId] &&
+        GOBLINS_USES[goblinName][goblinId][useKey]
       ) {
         throw new Error (
-          `Goblin creation error in goblin ${quest.goblin.goblinName}: 
+          `Goblin creation error in goblin ${goblinName}: 
           You already created a goblin with this namespace: ${namespace}, add '@useKey' after goblin name, ex: 
           const b1 = yield quest.create ('button@1', {});
           const b2 = yield quest.create ('button@2', {});
@@ -594,8 +598,8 @@ class Goblin {
           const b2 = quest.use ('button@2');`
         );
       }
-      GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id][useKey] = {};
-      useRef = GOBLINS_USES[quest.goblin.goblinName][quest.goblin.id][useKey];
+      GOBLINS_USES[goblinName][goblinId][useKey] = {};
+      useRef = GOBLINS_USES[goblinName][goblinId][useKey];
       useRef.namespace = namespace;
 
       const id = yield quest.cmd (`${namespace}.create`, args);
@@ -636,6 +640,14 @@ class Goblin {
         );
       return api;
     });
+
+    quest.create = (namespace, args) =>
+      quest.createFor (
+        quest.goblin.goblinName,
+        quest.goblin.id,
+        namespace,
+        args
+      );
 
     quest.evt = (customed, payload) => {
       if (!payload) {
