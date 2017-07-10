@@ -236,7 +236,8 @@ class Goblin {
         if (questName === 'delete') {
           delete GOBLINS[goblinName][msg.data.id];
           for (const g in GOBLINS_USES[goblinName][msg.data.id]) {
-            resp.command.send (`${g.namespace}.delete`);
+            const use = GOBLINS_USES[goblinName][msg.data.id][g];
+            resp.command.send (`${use.namespace}.delete`, {id: use.id});
           }
           delete GOBLINS_USES[goblinName][msg.data.id];
           return;
