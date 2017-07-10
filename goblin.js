@@ -748,11 +748,20 @@ class Goblin {
         while (quest._deferrable.length > 0) {
           yield quest._deferrable.pop () ();
         }
-        //GOBLIN DELETE QUEST DEFER SCOPED
+
+        if (questName === 'create') {
+          resp.events.send (`goblin.created`, {
+            id: this._goblinId,
+          });
+        }
         if (questName === 'delete') {
+          //GOBLIN DELETE QUEST DEFER SCOPED
           while (this._deferrable.length > 0) {
             yield this._deferrable.pop () ();
           }
+          resp.events.send (`goblin.deleted`, {
+            id: this._goblinId,
+          });
         }
       }
     });
