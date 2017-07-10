@@ -478,6 +478,9 @@ class Goblin {
   }
 
   getX (key) {
+    if (!SESSIONS[this.goblinName][this.id]) {
+      return null;
+    }
     return SESSIONS[this.goblinName][this.id][key];
   }
 
