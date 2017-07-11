@@ -180,6 +180,12 @@ class Goblin {
         quests[questName] = (msg, resp) => {
           injectMessageDataGetter (msg);
           const id = msg.get ('id') || `${goblinName}@${uuidV4 ()}`;
+          if (id.indexOf ('@') === -1) {
+            throw new Error (
+              `Bad gobelin id provided during ${goblinName}.create, id must respect this format:
+              (meta@)name@unique-identifier`
+            );
+          }
           const goblin = Goblin.create (goblinName, id);
           goblin.dispatch (goblin.doQuest (questName, msg, resp).bind (goblin));
         };

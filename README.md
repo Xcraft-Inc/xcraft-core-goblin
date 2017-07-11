@@ -24,26 +24,98 @@ This package provide a thin API and conventions for building your first goblin.
 By default, the goblins are instantiated by a create command:
 `const extractor = yield quest.create ('gold-extractor', payload)`
 
-When an instance is created in a quest, your goblin must control the deletion
-of the newly created goblin.
+When an instance is created this way in a goblin quest,
+you own the created instance, and some rules apply:
 
-Fortunatly we have a simple `defer ()` method (mostly inspired by **golang**)
-available on quest and goblin.
+When your gobelin (the owner) is deleted, sub-creations is also automagically deleted
+with a call to the delete quest.
+
 
 ### The `quest.create (namespace, args)` command
 
 Under the hood, `quest.create` sends a `quest.cmd ('gold-extractor.create', {...payload})`
 and returns an object containing `id` and all wrapped public quests.
 
+### Variants
+
+The createFor variant `quest.createFor (owner-namespace, id, namespace, args)`,
+allow you to define the owner manually, so when the specified owner is deleted, 
+this creation will be too.
+
 ### Single instance
 
 Some goblins can be created as singleton. In this case, `quest.create` will
 not work. You must send a command to the goblin directly with `quest.cmd`.
 
-### Deleting goblins instances with `defer ()`
 
-Just after creating an instance with `quest.create` you can register a `defer`
-call for deleting the instance at the right moment.
+### Usage of created gobelin in quest
+
+When you create a gobelin with create, a `usekey` is registered.
+You can retreive this created instance in other quest of your gobelin instance,
+by calling `const usableGoblin = quest.use (usekey)`.
+
+The `usekey` is by default the namespace used when you create something.
+
+Exemple:
+
+```js
+// in create quest
+const funnyGadget = yield quest.create ('funny-gadget');
+funnyGadget.doSomethingCool ();
+...
+
+//in another quest
+const funnyGadget = quest.use ('funny-gagdet');
+funnyGadget.doSomethingCool ();
+```
+
+You can pass goblin instance id between goblin for retreiving and use these ressources
+without owning anything.
+
+In this case you can `quest.useAs (usekey, id)`
+
+Exemple: 
+
+```js
+goblin.registerQuest ('create', (quest, funnyGadgetId) => {
+const funnyGadget = yield quest.useAs ('funny-gadget', funnyGadgetId);
+funnyGadget.doSomethingCool ();
+```
+
+
+### The hard part: multi-use
+
+When you create a goblin, you cannot own the same goblin a second time, without
+passing a unique id to your creation. In fact, `quest.create (namespace)` is taking a identifier.
+In some case, your instance create and use just one another instance, but when you create 
+more than one instance, you must define a unique `usekey`.
+
+Bad exemple:
+
+```js
+goblin.registerQuest ('add', (quest) => {
+const funnyGadget = yield quest.create ('funny-gadget');
+// If we call add multiple time in this instance, this code will fail!
+```
+
+Can do the job exemple:
+
+```js
+goblin.registerQuest ('add', (quest, myUnicornId) => {
+  // myUnicornId -> unicorn@unique-identifier -> goblin id like format!
+const funnyGadget = yield quest.create (`funny-gagdet@${myUnicornId}`);
+// This code can do the job if the caller give each time another myUnicornId
+// but will fail if the add quest is called two times with the same myUnicornId.
+ ```
+
+Unique id exemple: 
+
+```js
+goblin.registerQuest ('add', (quest, myUnicornId) => {
+// funnyGadgetId -> funny-gagdet@unique-identifier
+const funnyGadget = yield quest.create (`funny-gagdet@${uuidv4 ()}`);
+// This code is ok if we don't plan to reuse this funny gagdet in another quest
+ ```
 
 #### quest lifetime scope
 
@@ -52,7 +124,7 @@ quest is finished.
 
 ```js
 // Example of use for defering when we leave the quest
-goblin.registerQuest ('test', (quest, msg) => {
+goblin.registerQuest ('test', (quest) => {
   const extractor = yield quest.create ('gold-extractor');
   // We defer the delete quest, after this quest
   quest.defer (extractor.delete);
@@ -68,7 +140,7 @@ quest deletion of our goblin instance.
 
 ```js
 // Example of use for defering when we leave the delete of this instance
-goblin.registerQuest ('create', (quest, msg) => {
+goblin.registerQuest ('create', (quest) => {
   const extractor = yield quest.create ('gold-extractor');
   // We defer the delete quest, after our goblin delete quest run
   quest.goblin.defer (extractor.delete);
