@@ -474,7 +474,7 @@ class Goblin {
   }
 
   setX (key, value) {
-    if (value._dontKeepRefOnMe) {
+    if (value && value._dontKeepRefOnMe) {
       throw new Error (`You cannot setX with ${key} value`);
     }
     if (!SESSIONS[this.goblinName][this.id]) {
