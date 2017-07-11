@@ -599,8 +599,8 @@ class Goblin {
         GOBLINS_USES[goblinName][goblinId][useKey]
       ) {
         throw new Error (
-          `Goblin creation error in goblin ${goblinName}: 
-          You already created a goblin with this namespace: ${namespace}, add '@useKey' after goblin name, ex: 
+          `Goblin creation error in goblin ${goblinName}:
+          You already created a goblin with this namespace: ${namespace}, add '@useKey' after goblin name, ex:
           const b1 = yield quest.create ('button@1', {});
           const b2 = yield quest.create ('button@2', {});
           then in another quest:
