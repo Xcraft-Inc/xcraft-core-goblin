@@ -529,7 +529,7 @@ class Goblin {
 
     quest.useAs = function (namespace, id) {
       //Inject goblins API
-      let api = {
+      const api = {
         id,
         _dontKeepRefOnMe: true,
       };
@@ -616,7 +616,7 @@ class Goblin {
       useRef.id = id;
 
       //Inject goblins API
-      let api = {
+      const api = {
         id,
         _dontKeepRefOnMe: true,
       };
