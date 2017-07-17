@@ -2,9 +2,14 @@
   "name": "xcraft-core-goblin",
   "version": "2.1.0",
   "description": "Xcraft uService API",
-  "main": "goblin.js",
+  "main": "./lib/index.js",
   "engines": {
     "node": ">=6"
+  },
+  "config": {
+    "xcraft": {
+      "commands": true
+    }
   },
   "scripts": {
     "test": "mocha test/**/*.spec.js"
