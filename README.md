@@ -27,13 +27,13 @@ By default, the goblins are instantiated by a create command:
 When an instance is created this way in a goblin quest,
 you own the created instance, and some rules apply:
 
-When your gobelin (the owner) is deleted, sub-creations is also automagically deleted
-with a call to the delete quest.
+When your gobelin (the owner) is deleted, sub-creations is also automagically
+deleted with a call to the delete quest.
 
 
 ### The `quest.create (namespace, args)` command
 
-Under the hood, `quest.create` sends a `quest.cmd ('gold-extractor.create', {...payload})`
+Under the hood, `quest.create` sends a`quest.cmd ('gold-extractor.create', {...payload})`
 and returns an object containing `id` and all wrapped public quests.
 
 ### Variants
@@ -69,8 +69,8 @@ const funnyGadget = quest.use ('funny-gagdet');
 funnyGadget.doSomethingCool ();
 ```
 
-You can pass goblin instance id between goblin for retreiving and use these ressources
-without owning anything.
+You can pass goblin instance id between goblin for retreiving and use these
+ressources without owning anything.
 
 In this case you can `quest.useAs (usekey, id)`
 
@@ -86,9 +86,10 @@ funnyGadget.doSomethingCool ();
 ### The hard part: multi-use
 
 When you create a goblin, you cannot own the same goblin a second time, without
-passing a unique id to your creation. In fact, `quest.create (namespace)` is taking a identifier.
-In some case, your instance create and use just one another instance, but when you create 
-more than one instance, you must define a unique `usekey`.
+passing a unique id to your creation. In fact, `quest.create (namespace)` is
+taking a identifier.
+In some case, your instance create and use just one another instance, but when
+you create more than one instance, you must define a unique `usekey`.
 
 Bad exemple:
 
