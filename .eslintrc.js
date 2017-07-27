@@ -15,7 +15,9 @@ module.exports = {
     node: true,
     es6: true,
   },
-  extends: ['eslint:recommended'],
+  parser: 'babel-eslint',
+  plugins: ['react', 'babel'],
+  extends: ['eslint:recommended', 'plugin:react/recommended'],
   rules: {
     // Other rules
     'no-console': 'off',
