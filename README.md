@@ -65,20 +65,20 @@ funnyGadget.doSomethingCool ();
 ...
 
 //in another quest
-const funnyGadget = quest.use ('funny-gagdet');
+const funnyGadget = quest.getAPI ('funny-gagdet');
 funnyGadget.doSomethingCool ();
 ```
 
 You can pass goblin instance id between goblin for retreiving and use these
 ressources without owning anything.
 
-In this case you can `quest.useAs (usekey, id)`
+In this case you can `quest.getGoblinAPI (usekey, id)`
 
 Exemple: 
 
 ```js
 goblin.registerQuest ('create', (quest, funnyGadgetId) => {
-const funnyGadget = yield quest.useAs ('funny-gadget', funnyGadgetId);
+const funnyGadget = yield quest.getGoblinAPI ('funny-gadget', funnyGadgetId);
 funnyGadget.doSomethingCool ();
 ```
 
@@ -201,8 +201,7 @@ implement:
 #### usage for this example:
 
 ```js
-yield quest.cmd ('wm.init');
-const win = yield quest.create ('wm.win');
+const win = yield quest.create ('wm');
 quest.goblin.defer (win.delete);
 win.show ();
 ```
