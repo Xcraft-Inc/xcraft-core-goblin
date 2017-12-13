@@ -247,7 +247,7 @@ goblin.registerQuest ('create', (quest, somedata) => {
 # Goblin state persistence "feat. Ellen Ripley"
 
 ```js
-const persistenceConfig = {
+const ripleyConfig = {
   DISPATCH_TYPENAME_TO_REPLAY: {
     mode: 'all'
   },
@@ -260,8 +260,8 @@ const persistenceConfig = {
   }
 }
 
-// Give the persistence config at last argument
-const goblin = new Goblin (goblinName, logicState, logicHandlers, persistenceConfig);
+// Give the ripley config at last argument
+const goblin = new Goblin (goblinName, logicState, logicHandlers, ripleyConfig);
 ```
 
 # Goblin Shredder
