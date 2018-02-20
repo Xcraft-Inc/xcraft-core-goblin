@@ -4,11 +4,11 @@ import Container from 'gadgets/container/widget';
 import Readme from '../../README.md';
 
 class GoblinDoc extends Widget {
-  constructor (props, context) {
-    super (props, context);
+  constructor(props, context) {
+    super(props, context);
   }
 
-  renderPanel () {
+  renderPanel() {
     return (
       <Container kind="panes">
         <Container kind="pane">
@@ -18,12 +18,10 @@ class GoblinDoc extends Widget {
     );
   }
 
-  render () {
+  render() {
     return (
       <Container kind="views">
-        <Container kind="view">
-          {this.renderPanel ()}
-        </Container>
+        <Container kind="view">{this.renderPanel()}</Container>
       </Container>
     );
   }

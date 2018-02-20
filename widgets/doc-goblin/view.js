@@ -3,7 +3,7 @@ import View from 'laboratory/view';
 import GoblinDoc from 'core-goblin/doc-goblin/widget';
 
 class DocView extends View {
-  render () {
+  render() {
     return <GoblinDoc />;
   }
 }
