@@ -129,7 +129,7 @@ implement:
 
 ```js
 const win = yield quest.create ('wm');
-quest.goblin.defer (win.delete);
+quest.goblin.defer ( quest.release(win.id));
 win.show ();
 ```
 
