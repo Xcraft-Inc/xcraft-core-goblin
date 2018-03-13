@@ -14,12 +14,7 @@
   "scripts": {
     "test": "mocha test/**/*.spec.js"
   },
-  "keywords": [
-    "xcraft",
-    "service",
-    "micro",
-    "uService"
-  ],
+  "keywords": ["xcraft", "service", "micro", "uService"],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Xcraft-Inc/xcraft-core-goblin.git"
@@ -27,6 +22,8 @@
   "author": "Samuel Loup & Mathieu Schroeter",
   "license": "MIT",
   "dependencies": {
+    "cli-color": "^1.0.0",
+    "figlet": "^1.1.0",
     "fs-extra": "^3.0.1",
     "highland": "^2.11.1",
     "immutable": "4.0.0-rc.4",
