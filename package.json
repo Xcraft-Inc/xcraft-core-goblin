@@ -28,7 +28,6 @@
     "highland": "^2.11.1",
     "immutable": "4.0.0-rc.4",
     "lodash": "^4.17.4",
-    "locks": "^0.2.2",
     "mkdirp": "^0.5.1",
     "redux": "^3.7.2",
     "statedb": "^2.2.0",
