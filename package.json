@@ -14,7 +14,12 @@
   "scripts": {
     "test": "mocha test/**/*.spec.js"
   },
-  "keywords": ["xcraft", "service", "micro", "uService"],
+  "keywords": [
+    "xcraft",
+    "service",
+    "micro",
+    "uService"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Xcraft-Inc/xcraft-core-goblin.git"
@@ -40,7 +45,7 @@
   },
   "devDependencies": {
     "chai": "^3.5.0",
-    "mocha": "^3.3.0",
+    "mocha": "^5.2.0",
     "xcraft-dev-rules": "^0.2.0"
   }
 }
