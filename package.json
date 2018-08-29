@@ -30,6 +30,7 @@
     "cli-color": "^1.0.0",
     "figlet": "^1.1.0",
     "fs-extra": "^5.0.0",
+    "goblin-warehouse": "^0.0.1",
     "highland": "^2.11.1",
     "immutable": "4.0.0-rc.4",
     "lodash": "^4.17.4",
