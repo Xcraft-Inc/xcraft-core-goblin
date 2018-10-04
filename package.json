@@ -45,6 +45,8 @@
   },
   "devDependencies": {
     "chai": "^3.5.0",
+    "remotedev-server": "^0.2.6",
+    "remote-redux-devtools": "^0.5.13",
     "mocha": "^5.2.0",
     "xcraft-dev-rules": "^0.2.0"
   }
