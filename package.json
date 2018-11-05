@@ -28,6 +28,7 @@
   "license": "MIT",
   "dependencies": {
     "fs-extra": "^5.0.0",
+    "gigawatts": "^4.0.0",
     "highland": "^2.11.1",
     "immutable": "4.0.0-rc.4",
     "lodash": "^4.17.4",
@@ -36,7 +37,6 @@
     "redux": "^3.7.2",
     "statedb": "^2.2.0",
     "traverse": "^0.6.6",
-    "watt": "^3.3.0",
     "xcraft-core-log": "^1.0.0",
     "xcraft-core-shredder": "^1.0.0",
     "xcraft-core-utils": "^1.1.0"
