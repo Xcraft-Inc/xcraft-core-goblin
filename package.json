@@ -28,7 +28,7 @@
   "license": "MIT",
   "dependencies": {
     "fs-extra": "^5.0.0",
-    "gigawatts": "^4.0.0",
+    "gigawatts": "^4.0.1",
     "highland": "^2.11.1",
     "immutable": "4.0.0-rc.4",
     "lodash": "^4.17.4",
