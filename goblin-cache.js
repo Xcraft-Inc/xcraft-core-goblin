@@ -6,5 +6,5 @@
  * @returns {Object} The list and definitions of commands.
  */
 exports.xcraftCommands = function() {
-  return require('./lib/service.js');
+  return require('./lib/cache/cache.js');
 };
