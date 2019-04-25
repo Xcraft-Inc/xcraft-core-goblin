@@ -12,6 +12,8 @@ describe('scheduler-queue', function() {
       let cnt = 0;
       const queue = new SchedulerQueue();
 
+      const _next = next.parallel();
+
       queue.on('call', (type, item, next) => {
         if (type === 'serie') {
           ++cnt;
@@ -23,17 +25,18 @@ describe('scheduler-queue', function() {
               expect(acc).to.be.equal(5);
             } else if (cnt === 3) {
               expect(acc).to.be.equal(6);
+              _next();
             }
             next();
           }, 10 * item);
         }
       });
 
-      yield queue.done();
+      queue.resume();
 
-      queue.emit('serie', 3, next.parallel()); // 30ms
-      queue.emit('serie', 2, next.parallel()); // 20ms
-      queue.emit('serie', 1, next.parallel()); // 10ms
+      queue.emit('serie', 3); // 30ms
+      queue.emit('serie', 2); // 20ms
+      queue.emit('serie', 1); // 10ms
 
       yield next.sync();
 
@@ -48,7 +51,7 @@ describe('scheduler-queue', function() {
       let cnt = 0;
       const queue = new SchedulerQueue();
 
-      yield queue.done();
+      queue.resume();
 
       queue.on('call', (type, item) => {
         if (type === 'parallel') {
@@ -89,7 +92,7 @@ describe('scheduler-queue', function() {
 
     queue.on('call', (type, item) => {
       if (type === 'immediate') {
-        queue.done();
+        queue.resume();
       } else if (type === 'parallel') {
         acc += item;
         if (acc === 1 + 2 + 3) {
