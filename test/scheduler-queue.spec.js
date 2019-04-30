@@ -83,7 +83,9 @@ describe('scheduler-queue', function() {
       yield;
 
       time = process.hrtime(time);
-      expect(time[1]).greaterThan(30e6);
+      expect(time[1])
+        .greaterThan(30e6)
+        .and.lessThan(60e6);
       expect(acc).to.be.equal(6);
     })
   );
