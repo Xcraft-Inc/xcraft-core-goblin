@@ -34,12 +34,16 @@ describe('scheduler-queue', function() {
 
       queue.resume();
 
+      let time = process.hrtime();
+
       queue.emit('serie', 3); // 30ms
       queue.emit('serie', 2); // 20ms
       queue.emit('serie', 1); // 10ms
 
       yield next.sync();
 
+      time = process.hrtime(time);
+      expect(time[1]).greaterThan(60e6);
       expect(acc).to.be.equal(6);
     })
   );
@@ -70,12 +74,16 @@ describe('scheduler-queue', function() {
         }
       });
 
+      let time = process.hrtime();
+
       queue.emit('parallel', 3); // 30ms
       queue.emit('parallel', 2); // 20ms
       queue.emit('parallel', 1); // 10ms
 
       yield;
 
+      time = process.hrtime(time);
+      expect(time[1]).greaterThan(30e6);
       expect(acc).to.be.equal(6);
     })
   );
