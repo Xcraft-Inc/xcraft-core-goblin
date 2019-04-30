@@ -55,9 +55,9 @@ describe('scheduler-queue', function() {
 
       queue.on('call', (type, item) => {
         if (type === 'parallel') {
-          ++cnt;
-          acc += item;
           setTimeout(() => {
+            ++cnt;
+            acc += item;
             if (cnt === 1) {
               expect(acc).to.be.equal(1);
             } else if (cnt === 2) {
