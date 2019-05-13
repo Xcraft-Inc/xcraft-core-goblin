@@ -37,7 +37,7 @@
     "redux": "^3.7.2",
     "statedb": "^2.2.0",
     "traverse": "^0.6.6",
-    "xcraft-core-bus": "^2.0.2",
+    "xcraft-core-bus": "^3.0.0",
     "xcraft-core-log": "^1.0.0",
     "xcraft-core-shredder": "^2.0.0",
     "xcraft-core-utils": "^2.0.0"
