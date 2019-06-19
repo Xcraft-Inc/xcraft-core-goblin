@@ -44,10 +44,12 @@
   },
   "devDependencies": {
     "chai": "^3.5.0",
-    "remotedev-server": "^0.3.1",
-    "remote-redux-devtools": "^0.5.13",
     "mocha": "^5.2.0",
-    "xcraft-dev-rules": "^0.4.0",
-    "prettier": "1.16.4"
-  }
+    "prettier": "1.18.2",
+    "remote-redux-devtools": "^0.5.13",
+    "remotedev-server": "^0.3.1",
+    "xcraft-dev-prettier": "^1.0.0",
+    "xcraft-dev-rules": "^1.0.2"
+  },
+  "prettier": "xcraft-dev-prettier"
 }
