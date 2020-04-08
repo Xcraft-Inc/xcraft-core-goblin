@@ -4,10 +4,10 @@ const watt = require('gigawatts');
 const {expect} = require('chai');
 const SchedulerQueue = require('../lib/scheduler-queue.js');
 
-describe('scheduler-queue', function() {
+describe('scheduler-queue', function () {
   it(
     'serie',
-    watt(function*(next) {
+    watt(function* (next) {
       let acc = 0;
       let cnt = 0;
       const queue = new SchedulerQueue();
@@ -50,7 +50,7 @@ describe('scheduler-queue', function() {
 
   it(
     'parallel',
-    watt(function*(next) {
+    watt(function* (next) {
       let acc = 0;
       let cnt = 0;
       const queue = new SchedulerQueue();
@@ -83,14 +83,12 @@ describe('scheduler-queue', function() {
       yield;
 
       time = process.hrtime(time);
-      expect(time[1])
-        .greaterThan(30e6)
-        .and.lessThan(60e6);
+      expect(time[1]).greaterThan(30e6).and.lessThan(60e6);
       expect(acc).to.be.equal(6);
     })
   );
 
-  it('immediate', function(done) {
+  it('immediate', function (done) {
     let acc = 0;
     const queue = new SchedulerQueue();
 

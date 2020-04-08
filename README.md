@@ -101,10 +101,10 @@ This is not true for a single instance (singleton) goblin.
 
 We create a widget goblin named `panel`, we register and implement:
 
-* `create` (required!)
-* `delete` (required!)
-* `toggle`
-* `set-title`
+- `create` (required!)
+- `delete` (required!)
+- `toggle`
+- `set-title`
 
 #### usage for this example:
 
@@ -120,10 +120,10 @@ panel.setTitle ({title: 'Hello World'});
 We create a single instance goblin named `window-manager`, we register and
 implement:
 
-* `init`
-* `win.create` (required!)
-* `win.delete` (required!)
-* `win.show`
+- `init`
+- `win.create` (required!)
+- `win.delete` (required!)
+- `win.show`
 
 #### usage for this example:
 
@@ -232,7 +232,7 @@ registering your namespace and quests on the Xcraft server:
  *
  * @returns {Object} The list and definitions of commands.
  */
-exports.xcraftCommands = function() {
+exports.xcraftCommands = function () {
   return require(`./widgets/${require('path').basename(
     __filename,
     '.js'
@@ -290,7 +290,7 @@ And finally create a goblin:
 const goblin = new Goblin(goblinName, logicState, logicHandlers);
 
 // Register quest's according rc.json
-goblin.registerQuest('cashin', function*(quest, msg) {
+goblin.registerQuest('cashin', function* (quest, msg) {
   quest.do();
 });
 
