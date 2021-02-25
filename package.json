@@ -29,6 +29,7 @@
   "dependencies": {
     "fs-extra": "^7.0.1",
     "gigawatts": "^4.0.1",
+    "highland": "^2.11.1",
     "immutable": "4.0.0-rc.12",
     "lodash": "^4.17.4",
     "locks": "^0.2.2",
