@@ -27,7 +27,7 @@
   "author": "Samuel Loup & Mathieu Schroeter",
   "license": "MIT",
   "dependencies": {
-    "fs-extra": "^7.0.1",
+    "fs-extra": "^9.1.0",
     "gigawatts": "^4.0.1",
     "highland": "^2.11.1",
     "immutable": "4.0.0-rc.12",
