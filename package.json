@@ -30,7 +30,7 @@
     "fs-extra": "^9.1.0",
     "gigawatts": "^4.0.1",
     "highland": "^2.11.1",
-    "immutable": "4.0.0-rc.12",
+    "immutable": "4.0.0-rc.14",
     "lodash": "^4.17.4",
     "locks": "^0.2.2",
     "redux": "^4.0.1",
