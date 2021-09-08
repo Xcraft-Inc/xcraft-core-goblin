@@ -52,5 +52,9 @@
     "xcraft-dev-prettier": "^2.0.0",
     "xcraft-dev-rules": "^2.0.0"
   },
-  "prettier": "xcraft-dev-prettier"
+  "prettier": "xcraft-dev-prettier",
+  "bugs": {
+    "url": "https://github.com/Xcraft-Inc/xcraft-core-goblin/issues"
+  },
+  "homepage": "https://github.com/Xcraft-Inc/xcraft-core-goblin#readme"
 }
