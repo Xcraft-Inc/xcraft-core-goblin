@@ -36,6 +36,7 @@
     "redux": "^4.0.1",
     "statedb": "^3.0.0",
     "traverse": "^0.6.6",
+    "uuid": "^8.3.2",
     "xcraft-core-fs": "^2.1.0",
     "xcraft-core-bus": "^4.0.0",
     "xcraft-core-log": "^1.3.0",
@@ -51,5 +52,9 @@
     "xcraft-dev-prettier": "^2.0.0",
     "xcraft-dev-rules": "^2.0.0"
   },
-  "prettier": "xcraft-dev-prettier"
+  "prettier": "xcraft-dev-prettier",
+  "bugs": {
+    "url": "https://github.com/Xcraft-Inc/xcraft-core-goblin/issues"
+  },
+  "homepage": "https://github.com/Xcraft-Inc/xcraft-core-goblin#readme"
 }
