@@ -4,7 +4,7 @@
   "description": "Xcraft uService API",
   "main": "./lib/index.js",
   "engines": {
-    "node": ">=6"
+    "node": ">=14"
   },
   "config": {
     "xcraft": {
