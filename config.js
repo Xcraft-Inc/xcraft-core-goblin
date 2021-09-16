@@ -16,10 +16,4 @@ module.exports = [
     message: 'enable action store via StateDb',
     default: false,
   },
-  {
-    type: 'input',
-    name: 'guildsFile',
-    message: 'guilds definitions',
-    default: 'guildsDef.json',
-  },
 ];
