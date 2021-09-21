@@ -37,8 +37,11 @@
     "statedb": "^3.0.0",
     "traverse": "^0.6.6",
     "uuid": "^8.3.2",
+    "xcraft-core-busclient": "^5.0.0",
+    "xcraft-core-etc": "^3.0.0",
     "xcraft-core-fs": "^2.1.0",
     "xcraft-core-bus": "^5.0.0",
+    "xcraft-core-host": "^3.0.0",
     "xcraft-core-log": "^2.0.0",
     "xcraft-core-shredder": "^5.0.0",
     "xcraft-core-utils": "^4.0.0"

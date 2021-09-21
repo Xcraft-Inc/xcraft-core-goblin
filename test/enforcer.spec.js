@@ -1,7 +1,7 @@
 'use strict';
 const {expect} = require('chai');
 
-const guildEnforcer = require('xcraft-core-goblin/lib/guildEnforcer.js')({
+const guildEnforcer = require('../lib/guildEnforcer.js')({
   guildsFile: 'test',
 });
 const quest = () => {
