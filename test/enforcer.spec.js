@@ -2,7 +2,8 @@
 const {expect} = require('chai');
 
 const guildEnforcer = require('../lib/guildEnforcer.js')({
-  guildsFile: 'test',
+  policiesPath: '',
+  defaultPolicyLevel: 1,
 });
 const quest = () => {
   return 'hello world';
@@ -24,9 +25,9 @@ describe('guild-enforcer', function () {
     expect(blocked).to.be.equal(true);
   });
 
-  it('enforced as user must be allowed', function () {
+  it('enforced as authentified must be allowed', function () {
     const userOne = {id: 'one'};
-    guildEnforcer.enforce(userOne, 'user');
+    guildEnforcer.enforce(userOne, 'authentified');
     const blocked = guildEnforcer.isBlocked(userOne, 'test-cmd');
     expect(blocked).to.be.equal(false);
   });
@@ -46,7 +47,7 @@ describe('guild-enforcer', function () {
   });
 
   it('enrole user from token', function () {
-    const token = {aud: 'cresus.ch', login: 'userOne@host.ch'};
+    const token = {sub: 'uid.test', aud: 'goblins', login: 'userOne@host.ch'};
     guildEnforcer.enroleUser(token);
     const user = guildEnforcer.users['userOne@host.ch'];
     expect(user.login).to.be.equal('userOne@host.ch');
