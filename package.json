@@ -44,7 +44,7 @@
     "xcraft-core-host": "^3.7.0",
     "xcraft-core-log": "^2.0.0",
     "xcraft-core-shredder": "^5.0.0",
-    "xcraft-core-utils": "^4.0.0"
+    "xcraft-core-utils": "^4.4.0"
   },
   "devDependencies": {
     "chai": "^3.5.0",
