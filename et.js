@@ -6,5 +6,5 @@ const UserActor = require('./lib/userActor.js');
  * @returns {Object} The list and definitions of commands.
  */
 exports.xcraftCommands = function () {
-  return UserActor.configure();
+  return UserActor.Et.configure();
 };
