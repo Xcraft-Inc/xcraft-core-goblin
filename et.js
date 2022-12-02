@@ -1,4 +1,5 @@
-const UserActor = require('./lib/userActor.js');
+const Elf = require('./lib/elf.js');
+const {Et} = require('./lib/userActor.js');
 
 /**
  * Retrieve the list of available commands.
@@ -6,5 +7,5 @@ const UserActor = require('./lib/userActor.js');
  * @returns {Object} The list and definitions of commands.
  */
 exports.xcraftCommands = function () {
-  return UserActor.Et.configure();
+  return Elf.configure(Et);
 };
