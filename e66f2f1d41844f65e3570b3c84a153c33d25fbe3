@@ -1,0 +1,9 @@
+[
+  {
+    "Module": "xcraft-core-goblin",
+    "Version": "v5.7.4",
+    "Hash": "e66f2f1",
+    "Dev": "master",
+    "Prod": "5.7"
+  }
+]
