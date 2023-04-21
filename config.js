@@ -16,4 +16,10 @@ module.exports = [
     message: 'enable action store via StateDb',
     default: false,
   },
+  {
+    type: 'confirm',
+    name: 'enableGuildEnforcerCache',
+    message: 'enable the guild enforcer SQLite cache database',
+    default: false,
+  },
 ];
