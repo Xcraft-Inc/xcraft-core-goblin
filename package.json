@@ -45,7 +45,7 @@
     "xcraft-core-host": "^3.7.0",
     "xcraft-core-log": "^2.0.0",
     "xcraft-core-shredder": "^5.0.0",
-    "xcraft-core-stones": "^0.1.0",
+    "xcraft-core-stones": "^0.2.1",
     "xcraft-core-utils": "^4.4.0"
   },
   "devDependencies": {
