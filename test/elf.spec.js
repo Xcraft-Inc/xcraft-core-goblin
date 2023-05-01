@@ -17,8 +17,7 @@ describe("Elf's spirit", function () {
   }
 
   class TestState extends Elf.Sculpt(TestShape) {}
-  let spirit0 = new TestState();
-  let spirit1 = new TestState();
+  let spirit = new TestState();
 
   beforeEach(function () {
     const plain = {
@@ -27,26 +26,20 @@ describe("Elf's spirit", function () {
       strArr: ['one', 'two', 'tree'],
     };
 
-    /* State based on a plain javascript object */
-    spirit0 = new TestState(plain);
-
     const TestShredder = new Shredder(plain);
     /* State based on a Shredder */
-    spirit1 = Elf.Spirit.from(TestState)(TestShredder);
+    spirit = Elf.Spirit.from(TestState)(TestShredder);
   });
 
   it('read one number', function () {
-    expect(spirit0.num).to.be.equal(42);
-    expect(spirit1.num).to.be.equal(42);
+    expect(spirit.num).to.be.equal(42);
   });
 
   it('read one string', function () {
-    expect(spirit0.str).to.be.equal('fourty two');
-    expect(spirit1.str).to.be.equal('fourty two');
+    expect(spirit.str).to.be.equal('fourty two');
   });
 
   it('read array string', function () {
-    expect(spirit0.strArr[0]).to.be.equal('one');
-    expect(spirit1.strArr[0]).to.be.equal('one');
+    expect(spirit.strArr[0]).to.be.equal('one');
   });
 });
