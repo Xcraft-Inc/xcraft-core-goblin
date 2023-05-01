@@ -1,17 +1,21 @@
 'use strict';
 const {expect} = require('chai');
 
-const guildEnforcer = require('../lib/guildEnforcer.js')({
-  policiesPath: '',
-  defaultPolicyLevel: 1,
-});
-const quest = () => {
-  return 'hello world';
-};
-const OPEN_DESKTOP = Symbol.for('OPEN_DESKTOP');
-guildEnforcer.shield('test-cmd', quest, [OPEN_DESKTOP]);
-
 describe('guild-enforcer', function () {
+  let guildEnforcer;
+
+  before(function () {
+    guildEnforcer = require('../lib/guildEnforcer.js')({
+      policiesPath: '',
+      defaultPolicyLevel: 1,
+    });
+    const quest = () => {
+      return 'hello world';
+    };
+    const OPEN_DESKTOP = Symbol.for('OPEN_DESKTOP');
+    guildEnforcer.shield('test-cmd', quest, [OPEN_DESKTOP]);
+  });
+
   it('block not enforced', function () {
     const userOne = {id: 'one'};
     const blocked = guildEnforcer.isBlocked(userOne, 'test-cmd');
