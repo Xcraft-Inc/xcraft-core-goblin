@@ -7,14 +7,20 @@ process.env.XCRAFT_ROOT = xHost.appConfigPath;
 
 const {expect} = require('chai');
 const {Elf, Shredder} = require('xcraft-core-goblin');
-const {number, string, array} = require('xcraft-core-stones');
+const {number, string, array, enumeration} = require('xcraft-core-stones');
 
 describe("Elf's spirit", function () {
+  class TestSubShape {
+    name = string;
+    gender = enumeration('male', 'female');
+  }
+
   class TestShape {
     num = number;
     str = string;
     numArr = array(number);
     strArr = array(string);
+    obj = TestSubShape;
   }
 
   class TestState extends Elf.Sculpt(TestShape) {}
@@ -26,6 +32,11 @@ describe("Elf's spirit", function () {
       str: 'fourty two',
       numArr: [10, 20, 30, 40],
       strArr: ['one', 'two', 'three'],
+      obj: {
+        knight: 'Bragon',
+        princess: 'Mara',
+        master: 'Rige',
+      },
     };
 
     const TestShredder = new Shredder(plain);
@@ -55,7 +66,32 @@ describe("Elf's spirit", function () {
   });
 
   it('read array length', function () {
-    expect(spirit.numArr.length).to.be.equal(4);
-    expect(spirit.strArr.length).to.be.equal(3);
+    expect(spirit.numArr).to.have.lengthOf(4);
+    expect(spirit.strArr).to.have.lengthOf(3);
+  });
+
+  it('read for..of on array', function () {
+    let loop;
+
+    loop = 1;
+    for (const num of spirit.numArr) {
+      expect(num).to.be.equal(10 * loop++);
+    }
+
+    const results = ['one', 'two', 'three'];
+    loop = 0;
+    for (const num of spirit.strArr) {
+      expect(num).to.be.equal(results[loop++]);
+    }
+  });
+
+  it('read for..of on object', function () {
+    for (const key of Object.keys(spirit.obj)) {
+      expect(key).to.be.oneOf(['knight', 'princess', 'master']);
+    }
+
+    for (const value of Object.values(spirit.obj)) {
+      expect(value).to.be.oneOf(['Bragon', 'Mara', 'Rige']);
+    }
   });
 });
