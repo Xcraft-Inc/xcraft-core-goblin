@@ -26,7 +26,7 @@ describe("Elf's spirit", function () {
   class TestState extends Elf.Sculpt(TestShape) {}
   let spirit = new TestState();
 
-  beforeEach(function () {
+  before(function () {
     const plain = {
       num: 42,
       str: 'fourty two',
