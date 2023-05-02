@@ -7,12 +7,13 @@ process.env.XCRAFT_ROOT = xHost.appConfigPath;
 
 const {expect} = require('chai');
 const {Elf, Shredder} = require('xcraft-core-goblin');
-const {number, string, array, enumeration} = require('xcraft-core-stones');
+const {number, string, array} = require('xcraft-core-stones');
 
 describe("Elf's spirit", function () {
   class TestSubShape {
-    name = string;
-    gender = enumeration('male', 'female');
+    knight = string;
+    princess = string;
+    master = string;
   }
 
   class TestShape {
