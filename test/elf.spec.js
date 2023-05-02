@@ -158,5 +158,21 @@ describe("Elf's spirit", function () {
       spirit.strArr.push('fourty two');
       expect(spirit.strArr).to.have.lengthOf(1);
     });
+
+    it('object', function () {
+      expect(spirit.obj).to.deep.equal({
+        knight: '',
+        princess: '',
+        master: '',
+      });
+      spirit.obj = {
+        knight: 'Bragon',
+        princess: 'Mara',
+        master: 'Rige',
+      };
+      expect(spirit.obj.knight).to.be.equal('Bragon');
+      expect(spirit.obj.princess).to.be.equal('Mara');
+      expect(spirit.obj.master).to.be.equal('Rige');
+    });
   });
 });
