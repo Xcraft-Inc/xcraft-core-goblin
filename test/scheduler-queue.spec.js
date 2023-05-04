@@ -4,7 +4,7 @@ const watt = require('gigawatts');
 const {expect} = require('chai');
 const SchedulerQueue = require('../lib/scheduler-queue.js');
 
-describe('scheduler-queue', function () {
+describe('xcraft.goblin.scheduler-queue', function () {
   it(
     'serie',
     watt(function* (next) {

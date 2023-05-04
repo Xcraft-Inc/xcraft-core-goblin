@@ -14,7 +14,7 @@ const {expect} = require('chai');
 const {Elf, Shredder} = require('xcraft-core-goblin');
 const {number, string, array} = require('xcraft-core-stones');
 
-describe("Elf's spirit", function () {
+describe('xcraft.goblin.elf.spirit', function () {
   class TestSubShape {
     knight = string;
     princess = string;

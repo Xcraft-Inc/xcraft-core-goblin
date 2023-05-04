@@ -1,7 +1,7 @@
 'use strict';
 const {expect} = require('chai');
 
-describe('guild-enforcer', function () {
+describe('xcraft.goblin.guild-enforcer', function () {
   let guildEnforcer;
 
   before(function () {
