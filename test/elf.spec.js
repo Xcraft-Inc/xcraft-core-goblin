@@ -1,9 +1,14 @@
 // @ts-check
 'use strict';
 
-const xHost = require('xcraft-core-host');
-// @ts-ignore
-process.env.XCRAFT_ROOT = xHost.appConfigPath;
+if (!process.env.XCRAFT_ROOT) {
+  const fs = require('fs');
+  const xHost = require('xcraft-core-host');
+  // @ts-ignore
+  process.env.XCRAFT_ROOT = fs.existsSync(xHost.appConfigPath)
+    ? xHost.appConfigPath
+    : xHost.projectPath;
+}
 
 const {expect} = require('chai');
 const {Elf, Shredder} = require('xcraft-core-goblin');
