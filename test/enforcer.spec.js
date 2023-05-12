@@ -50,15 +50,11 @@ describe('xcraft.goblin.guild-enforcer', function () {
     expect(blocked).to.be.equal(true);
   });
 
-  it('enrole user from token', function () {
+  it('enrole user from token; this user must be allowed', function () {
     const token = {sub: 'uid.test', aud: 'goblins', login: 'userOne@host.ch'};
     guildEnforcer.enroleUser(token);
     const user = guildEnforcer.users['uid.test'];
     expect(user.id).to.be.equal('uid.test');
-  });
-
-  it('enroled user must be allowed', function () {
-    const user = guildEnforcer.users['userOne@host.ch'];
     const blocked = guildEnforcer.isBlocked(user, 'test-cmd');
     expect(blocked).to.be.equal(false);
   });
