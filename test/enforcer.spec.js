@@ -53,8 +53,8 @@ describe('xcraft.goblin.guild-enforcer', function () {
   it('enrole user from token', function () {
     const token = {sub: 'uid.test', aud: 'goblins', login: 'userOne@host.ch'};
     guildEnforcer.enroleUser(token);
-    const user = guildEnforcer.users['userOne@host.ch'];
-    expect(user.login).to.be.equal('userOne@host.ch');
+    const user = guildEnforcer.users['uid.test'];
+    expect(user.id).to.be.equal('uid.test');
   });
 
   it('enroled user must be allowed', function () {
