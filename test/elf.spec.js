@@ -12,13 +12,13 @@ if (!process.env.XCRAFT_ROOT) {
 
 const {expect} = require('chai');
 const {Elf, Shredder} = require('xcraft-core-goblin');
-const {number, string, array} = require('xcraft-core-stones');
+const {number, string, array, option} = require('xcraft-core-stones');
 
 describe('xcraft.goblin.elf.spirit', function () {
   class TestSubShape {
     knight = string;
     princess = string;
-    master = string;
+    master = option(string);
   }
 
   class TestShape {
@@ -192,6 +192,32 @@ describe('xcraft.goblin.elf.spirit', function () {
       expect(spirit.obj.knight).to.be.equal('Bragon');
       expect(spirit.obj.princess).to.be.equal('Mara');
       expect(spirit.obj.master).to.be.equal('Rige');
+    });
+  });
+
+  describe('delete', function () {
+    beforeEach(function () {
+      const plain = {
+        num: 42,
+        str: 'fourty two',
+        numArr: [10, 20, 30, 40],
+        strArr: ['one', 'two', 'three'],
+        obj: {
+          knight: 'Bragon',
+          princess: 'Mara',
+          master: 'Rige',
+        },
+      };
+
+      const testShredder = new Shredder(plain);
+      testShredder._state = testShredder._state.asMutable();
+      spirit = Elf.Spirit.from(TestState)(testShredder);
+    });
+
+    it('one deep key', function () {
+      expect(spirit.obj.master).to.exist;
+      delete spirit.obj.master;
+      expect(spirit.obj.master).to.not.exist;
     });
   });
 });
