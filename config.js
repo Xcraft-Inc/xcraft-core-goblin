@@ -12,6 +12,12 @@ module.exports = [
   },
   {
     type: 'confirm',
+    name: 'enableActionsSync',
+    message: 'enable actions store synchronization for Cryo',
+    default: false,
+  },
+  {
+    type: 'confirm',
     name: 'enableStateDb',
     message: 'enable action store via StateDb',
     default: false,
