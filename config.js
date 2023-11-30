@@ -12,8 +12,14 @@ module.exports = [
   },
   {
     type: 'confirm',
-    name: 'enableActionsSync',
+    name: 'actionsSync.enable',
     message: 'enable actions store synchronization for Cryo',
+    default: false,
+  },
+  {
+    type: 'confirm',
+    name: 'actionsSync.excludeDB',
+    message: 'list of excluded databases from the sync',
     default: false,
   },
   {
