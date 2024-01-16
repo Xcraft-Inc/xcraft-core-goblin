@@ -27,6 +27,7 @@ describe('xcraft.goblin.elf.spirit', function () {
     numArr = array(number);
     strArr = array(string);
     obj = TestSubShape;
+    objArr = array(TestSubShape);
   }
 
   class TestState extends Elf.Sculpt(TestShape) {}
@@ -44,6 +45,20 @@ describe('xcraft.goblin.elf.spirit', function () {
           princess: 'Mara',
           master: 'Rige',
         },
+        objArr: [
+          {
+            knight: 'Bragon 1',
+            princess: 'Mara 1',
+            master: 'Rige 1',
+          },
+          {
+            knight: 'Bragon 2',
+            princess: 'Mara 2',
+            master: 'Rige 2',
+          },
+          2,
+          '3',
+        ],
       };
 
       const testShredder = new Shredder(plain);
@@ -89,6 +104,29 @@ describe('xcraft.goblin.elf.spirit', function () {
       loop = 0;
       for (const num of spirit.strArr) {
         expect(num).to.be.equal(results[loop++]);
+      }
+    });
+
+    it('for..of on array of objects', function () {
+      let loop = 0;
+      for (const obj of spirit.objArr) {
+        switch (loop) {
+          case 0:
+          case 1: {
+            const num = loop === 0 ? '1' : '2';
+            expect(obj.knight).to.be.equal(`Bragon ${num}`);
+            expect(obj.princess).to.be.equal(`Mara ${num}`);
+            expect(obj.master).to.be.equal(`Rige ${num}`);
+            break;
+          }
+          case 2:
+            expect(obj).to.be.equal(2);
+            break;
+          case 3:
+            expect(obj).to.be.equal('3');
+            break;
+        }
+        ++loop;
       }
     });
 
