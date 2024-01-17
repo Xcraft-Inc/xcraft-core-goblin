@@ -13,6 +13,8 @@ if (!process.env.XCRAFT_ROOT) {
 const {expect} = require('chai');
 const {Elf, Shredder} = require('xcraft-core-goblin');
 const {number, string, array, option} = require('xcraft-core-stones');
+const {logicTraps} = require('../lib/elf/traps.js');
+const {cacheReduceParams} = require('../lib/elf/params.js');
 
 describe('xcraft.goblin.elf.spirit', function () {
   class TestSubShape {
@@ -256,6 +258,179 @@ describe('xcraft.goblin.elf.spirit', function () {
       expect(spirit.obj.master).to.exist;
       delete spirit.obj.master;
       expect(spirit.obj.master).to.not.exist;
+    });
+  });
+});
+
+describe('xcraft.goblin.elf.traps', function () {
+  describe('logic', function () {
+    const goblinName = 'myGoblin';
+    const questName = 'myReducer';
+
+    let payload;
+
+    const target = {
+      name: questName,
+    };
+    const self = {
+      _quest: {
+        goblin: {
+          goblinName,
+        },
+        questName,
+        msg: {
+          data: {},
+        },
+        do: (p) => {
+          payload = p;
+        },
+        dispatch: (n, p) => {
+          payload = p;
+        },
+      },
+    };
+    const params = ['arg1', 'arg2', 'arg3', 'arg4'];
+
+    cacheReduceParams.register(goblinName, questName, params);
+
+    it('empty (no overload)', function () {
+      const args = ['data 1', 'data 2', 'data 3'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (first)', function () {
+      const args = ['data 4'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg1: 'data 4'};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (first two)', function () {
+      const args = ['data 4', 'data 5'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg1: 'data 4', arg2: 'data 5'};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (all)', function () {
+      const args = ['data 4', 'data 5', 'data 6'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg1: 'data 4', arg2: 'data 5', arg3: 'data 6'};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (first with null)', function () {
+      const args = [null];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg1: null};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (first two with null)', function () {
+      const args = [null, null];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg1: null, arg2: null};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (all with null)', function () {
+      const args = [null, null, null];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg1: null, arg2: null, arg3: null};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (first with undefined)', function () {
+      const args = [undefined];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (first two with undefined)', function () {
+      const args = [undefined, undefined];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (all with undefined)', function () {
+      const args = [undefined, undefined, undefined];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (extend)', function () {
+      const args = ['data 1', 'data 2', 'data 3', 'data X'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg4: 'data X'};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (first and extend)', function () {
+      const args = ['data 4', 'data 2', 'data 3', 'data X'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg1: 'data 4', arg4: 'data X'};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (first two and extend)', function () {
+      const args = ['data 4', null, 'data 3', 'data X'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg1: 'data 4', arg2: null, arg4: 'data X'};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('overload (extend undefined)', function () {
+      const args = ['data 1', 'data 2', 'data 3', undefined];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
     });
   });
 });
