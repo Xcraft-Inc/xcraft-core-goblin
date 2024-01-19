@@ -263,7 +263,7 @@ describe('xcraft.goblin.elf.spirit', function () {
 });
 
 describe('xcraft.goblin.elf.traps', function () {
-  describe('logic', function () {
+  describe('logic.do', function () {
     const goblinName = 'myGoblin';
     const questName = 'myReducer';
 
@@ -427,6 +427,70 @@ describe('xcraft.goblin.elf.traps', function () {
       const args = ['data 1', 'data 2', 'data 3', undefined];
       const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
       const expected = {};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+  });
+
+  describe('logic.dispatch', function () {
+    const goblinName = 'myGoblin';
+    const myReducer = 'myReducer';
+    const mySecondReducer = 'mySecondReducer';
+
+    let payload;
+
+    const target = {
+      name: mySecondReducer,
+    };
+    const self = {
+      _quest: {
+        goblin: {
+          goblinName,
+        },
+        questName: myReducer,
+        msg: {
+          data: {},
+        },
+        do: (p) => {
+          payload = p;
+        },
+        dispatch: (n, p) => {
+          payload = p;
+        },
+      },
+    };
+    const params1 = ['arg1', 'arg2', 'arg3', 'arg4'];
+    const params2 = ['arg2', 'arg5'];
+
+    cacheReduceParams.register(goblinName, myReducer, params1);
+    cacheReduceParams.register(goblinName, mySecondReducer, params2);
+
+    it('empty (nothing)', function () {
+      const args = [];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('forward (second)', function () {
+      const args = ['data 2'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg2: 'data 2'};
+
+      self._quest.msg.data = data;
+      logicTraps.apply(target, self, args);
+      expect(payload).to.be.eql(expected);
+    });
+
+    it('forward (all)', function () {
+      const args = ['data 2', 'data 5'];
+      const data = {arg1: 'data 1', arg2: 'data 2', arg3: 'data 3'};
+      const expected = {arg2: 'data 2', arg5: 'data 5'};
 
       self._quest.msg.data = data;
       logicTraps.apply(target, self, args);
