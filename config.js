@@ -17,10 +17,10 @@ module.exports = [
     default: false,
   },
   {
-    type: 'confirm',
+    type: 'list',
     name: 'actionsSync.excludeDB',
     message: 'list of excluded databases from the sync',
-    default: false,
+    default: [],
   },
   {
     type: 'confirm',
