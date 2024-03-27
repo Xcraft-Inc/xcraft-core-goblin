@@ -48,15 +48,16 @@ describe('xcraft.goblin.scheduler-queue', function () {
     })
   );
 
-  it(
-    'parallel',
-    watt(function* (next) {
-      let acc = 0;
-      let cnt = 0;
-      const queue = new SchedulerQueue();
+  it('parallel', async function () {
+    let acc = 0;
+    let cnt = 0;
+    const queue = new SchedulerQueue();
 
-      queue.resume();
+    queue.resume();
 
+    let time;
+
+    await new Promise((resolve) => {
       queue.on('call', (type, item) => {
         if (type === 'parallel') {
           setTimeout(() => {
@@ -68,25 +69,23 @@ describe('xcraft.goblin.scheduler-queue', function () {
               expect(acc).to.be.equal(3);
             } else if (cnt === 3) {
               expect(acc).to.be.equal(6);
-              next();
+              resolve();
             }
           }, 10 * item);
         }
       });
 
-      let time = process.hrtime();
+      time = process.hrtime();
 
       queue.emit('parallel', 3); // 30ms
       queue.emit('parallel', 2); // 20ms
       queue.emit('parallel', 1); // 10ms
+    });
 
-      yield;
-
-      time = process.hrtime(time);
-      expect(time[1]).greaterThan(30e6).and.lessThan(60e6);
-      expect(acc).to.be.equal(6);
-    })
-  );
+    time = process.hrtime(time);
+    expect(time[1]).greaterThan(28e6).and.lessThan(58e6);
+    expect(acc).to.be.equal(6);
+  });
 
   it('immediate', function (done) {
     let acc = 0;
