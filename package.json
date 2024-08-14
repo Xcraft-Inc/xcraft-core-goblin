@@ -50,7 +50,7 @@
     "mocha": "^5.2.0",
     "prettier": "2.0.4",
     "xcraft-dev-prettier": "^2.0.0",
-    "xcraft-dev-rules": "^4.1.0"
+    "xcraft-dev-rules": "^4.3.0"
   },
   "prettier": "xcraft-dev-prettier",
   "bugs": {
