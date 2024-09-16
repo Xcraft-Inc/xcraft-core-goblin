@@ -1,17 +1,8 @@
 // @ts-check
 'use strict';
 
-if (!process.env.XCRAFT_ROOT) {
-  const fs = require('fs');
-  const xHost = require('xcraft-core-host');
-  // @ts-ignore
-  process.env.XCRAFT_ROOT = fs.existsSync(xHost.appConfigPath)
-    ? xHost.appConfigPath
-    : xHost.projectPath;
-}
-
 const {expect} = require('chai');
-const {Elf, Shredder} = require('xcraft-core-goblin');
+const {Elf, Shredder} = require('xcraft-core-goblin/lib/test.js');
 const {number, string, array, option} = require('xcraft-core-stones');
 const {logicTraps} = require('../lib/elf/traps.js');
 const {cacheReduceParams} = require('../lib/elf/params.js');
