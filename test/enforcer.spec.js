@@ -16,6 +16,13 @@ describe('xcraft.goblin.guild-enforcer', function () {
     guildEnforcer.shield('test-cmd', quest, [OPEN_DESKTOP]);
   });
 
+  after(function () {
+    guildEnforcer = require('../lib/guildEnforcer.js')({
+      policiesPath: '',
+      defaultPolicyLevel: 0,
+    });
+  });
+
   it('block not enforced', function () {
     const userOne = {id: 'one'};
     const blocked = guildEnforcer.isBlocked(userOne, 'test-cmd');
