@@ -160,7 +160,7 @@ describe('xcraft.goblin.elf.spirit', function () {
     });
 
     it('one string', function () {
-      expect(spirit.str).is.empty;
+      expect(spirit.str).is.equals('');
       spirit.str = 'fourty two';
       expect(spirit.str).to.be.equal('fourty two');
     });
@@ -196,14 +196,14 @@ describe('xcraft.goblin.elf.spirit', function () {
     });
 
     it('array includes', function () {
-      expect(spirit.numArr.includes(42)).to.be.false;
+      expect(spirit.numArr.includes(42)).to.be.equals(false);
       spirit.numArr.push(42);
-      expect(spirit.numArr.includes(42)).to.be.true;
+      expect(spirit.numArr.includes(42)).to.be.equals(true);
     });
 
     it('array', function () {
-      expect(spirit.numArr[0]).to.be.undefined;
-      expect(spirit.numArr[1]).to.be.undefined;
+      expect(spirit.numArr[0]).to.be.equals(undefined);
+      expect(spirit.numArr[1]).to.be.equals(undefined);
       spirit.numArr = [1, 2];
       expect(spirit.numArr[0]).to.be.equal(1);
       expect(spirit.numArr[1]).to.be.equal(2);
