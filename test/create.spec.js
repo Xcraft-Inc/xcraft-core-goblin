@@ -1,6 +1,7 @@
 // @ts-check
 'use strict';
 
+const {expect} = require('chai');
 const {Elf} = require('xcraft-core-goblin/lib/test.js');
 
 describe('xcraft.goblin.create', function () {
@@ -47,18 +48,10 @@ describe('xcraft.goblin.create', function () {
         });
 
         const delta = process.hrtime(start)[0];
-        if (delta < 2 || delta > 3) {
-          throw new Error(
-            `Failed because creates must take more than 2s and less than 3s, received ${delta}`
-          );
-        }
+        expect(delta).to.be.greaterThan(1).and.to.be.lessThan(3);
 
         const counter = await api.getCounter();
-        if (counter !== 1) {
-          throw new Error(
-            `Failed because the counter should be 1 and received ${counter}`
-          );
-        }
+        expect(counter).to.be.equals(1);
       } finally {
         await this.quest.kill(id);
       }
