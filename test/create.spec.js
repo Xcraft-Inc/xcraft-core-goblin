@@ -57,4 +57,55 @@ describe('xcraft.goblin.create', function () {
       }
     });
   });
+
+  it('massiveCreateKill', async function () {
+    this.timeout(60000);
+    await runner.it(async function () {
+      const xBus = require('xcraft-core-bus');
+      await xBus.loadModule(
+        this.quest.resp,
+        ['test-goblin-core.js'],
+        __dirname,
+        {}
+      );
+
+      const desktopId = 'system@createKill';
+      const id = `test-goblin-core@${this.quest.uuidV4()}`;
+
+      const ck = async (cnt) => {
+        for (let i = 0; i < 10; ++i) {
+          await this.quest.create('test-goblin-core', {
+            id,
+            desktopId,
+            wait: 0,
+          });
+          await this.quest.kill(id);
+          cnt.value++;
+        }
+      };
+
+      const cnt = {value: 1};
+      let prev = 0;
+
+      const deadlock = setInterval(() => {
+        expect(cnt.value).to.be.not.equals(
+          prev,
+          `DEADLOCK: counter stopped at ${cnt.value}`
+        );
+
+        prev = cnt.value;
+      }, 5000);
+
+      try {
+        for (let i = 0; i < 1000; ++i) {
+          await ck(cnt);
+        }
+
+        clearInterval(deadlock);
+      } finally {
+        /* cleanup */
+        await this.quest.kill(id);
+      }
+    });
+  });
 });
