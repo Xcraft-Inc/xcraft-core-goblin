@@ -21,7 +21,7 @@ describe('xcraft.goblin.create', function () {
    * create waits for 500ms (await). The test must returned when the
    * counter is 1 (recreate is just waiting) and with a total time around 2s.
    */
-  it('jonnyCases', async function () {
+  it("jonny's cases", async function () {
     this.timeout(10000);
     await runner.it(async function () {
       const xBus = require('xcraft-core-bus');
@@ -58,7 +58,7 @@ describe('xcraft.goblin.create', function () {
     });
   });
 
-  it('massiveCreateKill', async function () {
+  it('massive create / kill', async function () {
     this.timeout(60000);
     await runner.it(async function () {
       const xBus = require('xcraft-core-bus');
