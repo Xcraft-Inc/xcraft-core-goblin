@@ -48,8 +48,8 @@
     "xcraft-core-utils": "^4.16.0"
   },
   "devDependencies": {
-    "chai": "^3.5.0",
-    "mocha": "^10.7.3",
+    "chai": "^5.2.0",
+    "mocha": "^11.2.2",
     "prettier": "2.0.4",
     "xcraft-dev-prettier": "^2.0.0",
     "xcraft-dev-rules": "^4.4.2"
