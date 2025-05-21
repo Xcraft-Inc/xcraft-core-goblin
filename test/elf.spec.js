@@ -141,6 +141,7 @@ describe('xcraft.goblin.elf.spirit', function () {
         str: '',
         numArr: [],
         strArr: [],
+        objArr: [],
         obj: {
           knight: '',
           princess: '',
@@ -199,6 +200,33 @@ describe('xcraft.goblin.elf.spirit', function () {
       expect(spirit.numArr.includes(42)).to.be.equals(false);
       spirit.numArr.push(42);
       expect(spirit.numArr.includes(42)).to.be.equals(true);
+    });
+
+    it('array map number', function () {
+      expect(spirit.numArr).to.have.lengthOf(0);
+      spirit.numArr.push(21);
+      spirit.numArr.push(42);
+      const numArr = spirit.numArr.map((nb) => nb * 2);
+      expect(numArr[0]).to.be.equal(42);
+      expect(numArr[1]).to.be.equal(84);
+    });
+
+    it('array map string', function () {
+      expect(spirit.strArr).to.have.lengthOf(0);
+      spirit.strArr.push('4');
+      spirit.strArr.push('4');
+      const strArr = spirit.strArr.map((str, index) => str + `${index + 2}`);
+      expect(strArr[0]).to.be.equal('42');
+      expect(strArr[1]).to.be.equal('43');
+    });
+
+    it('array map object', function () {
+      expect(spirit.objArr).to.have.lengthOf(0);
+      spirit.objArr.push({knight: 'Bragon', princess: 'Mara'});
+      spirit.objArr.push({knight: 'Rige', princess: 'unknown'});
+      const objArr = spirit.objArr.map((obj) => obj.knight);
+      expect(objArr[0]).to.be.equal('Bragon');
+      expect(objArr[1]).to.be.equal('Rige');
     });
 
     it('array', function () {
