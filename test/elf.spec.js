@@ -274,13 +274,13 @@ describe('xcraft.goblin.elf.spirit', function () {
     });
 
     it('one deep key', function () {
-      expect(spirit.obj.knight).to.exist;
-      expect(spirit.obj.princess).to.exist;
-      expect(spirit.obj.master).to.exist;
+      expect(spirit.obj.knight).satisfies((str) => typeof str === 'string');
+      expect(spirit.obj.princess).satisfies((str) => typeof str === 'string');
+      expect(spirit.obj.master).satisfies((str) => typeof str === 'string');
       delete spirit.obj.master;
-      expect(spirit.obj.knight).to.exist;
-      expect(spirit.obj.princess).to.exist;
-      expect(spirit.obj.master).to.not.exist;
+      expect(spirit.obj.knight).satisfies((str) => typeof str === 'string');
+      expect(spirit.obj.princess).satisfies((str) => typeof str === 'string');
+      expect(spirit.obj.master).is.equals(undefined);
     });
   });
 });
