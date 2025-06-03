@@ -8,12 +8,6 @@ describe('xcraft.goblin.create', function () {
   let runner;
 
   this.beforeAll(function () {
-    const fse = require('fs-extra');
-    const {appConfigPath} = require('xcraft-core-host');
-    if (appConfigPath.endsWith('-test')) {
-      fse.removeSync(appConfigPath);
-    }
-
     runner = new Elf.Runner();
     runner.init();
   });
