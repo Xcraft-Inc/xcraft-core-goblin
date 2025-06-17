@@ -64,11 +64,11 @@ Le Guild Enforcer contrôle l'accès aux quêtes via :
 
 ```javascript
 const {Elf} = require('xcraft-core-goblin');
-const {string, option, object} = require('xcraft-core-stones');
+const {string, option, number} = require('xcraft-core-stones');
 
 class MyLogicShape {
   id = string;
-  data = option(object);
+  data = option(number);
 }
 
 class MyLogicState extends Elf.Sculpt(MyLogicShape) {}
@@ -151,7 +151,7 @@ module.exports = Goblin.configure('counter', logicState, logicHandlers);
 
 - **[xcraft-core-bus]** : Communication inter-acteurs et routage des messages
 - **[xcraft-core-cryo]** : Persistance et synchronisation des états
-- **[xcraft-core-warehouse]** : Gestion des relations parent-enfant et feeds
+- **[goblin-warehouse]** : Gestion des relations parent-enfant et feeds
 - **[xcraft-core-shredder]** : Structures de données immutables
 - **[goblin-laboratory]** : Composants UI React pour les widgets
 
@@ -664,6 +664,6 @@ _Ce document a été mis à jour pour refléter l'état actuel du code source._
 
 [xcraft-core-bus]: https://github.com/Xcraft-Inc/xcraft-core-bus
 [xcraft-core-cryo]: https://github.com/Xcraft-Inc/xcraft-core-cryo
-[xcraft-core-warehouse]: https://github.com/Xcraft-Inc/xcraft-core-warehouse
+[goblin-warehouse]: https://github.com/Xcraft-Inc/goblin-warehouse
 [xcraft-core-shredder]: https://github.com/Xcraft-Inc/xcraft-core-shredder
 [goblin-laboratory]: https://github.com/Xcraft-Inc/goblin-laboratory
