@@ -1,5 +1,7 @@
 # 📘 Documentation du module xcraft-core-goblin
 
+> Goblins are small, green (or yellow-green) creatures with pointy features and high intelligence (though often little common sense). Goblins speak Goblin, Orcish, and Common. Goblins know myriad languages in order to trade with as many races as possible.
+
 ## Aperçu
 
 Le module `xcraft-core-goblin` est le cœur du framework Xcraft, fournissant une API pour créer des microservices basés sur Redux appelés "Goblins". Il implémente un système d'acteurs avec gestion d'état immutable, persistance via Cryo, et communication par bus de messages. Le module offre deux types d'acteurs principaux : les acteurs Goblin (legacy) et les acteurs Elf (moderne), avec support pour la sécurité via le Guild Enforcer et la synchronisation distribuée.
