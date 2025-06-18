@@ -15,9 +15,11 @@ Le système de synchronisation Ripley permet la réplication des données entre 
 - [Surveillance et performance](#surveillance-et-performance)
 - [Bootstrap et initialisation](#bootstrap-et-initialisation)
 
-## Architecture générale
+## Fonctionnement
 
-Le système Ripley repose sur deux quêtes principales :
+### Architecture générale
+
+Le système Ripley repose sur deux quêtes principales dans le fichier `lib/service.js` :
 
 - **`ripleyClient`** : Gère la synchronisation côté client
 - **`ripleyServer`** : Traite les demandes de synchronisation côté serveur
@@ -40,9 +42,40 @@ sequenceDiagram
     C->>DB: Met à jour commitIds
 ```
 
-## Synchronisation côté client
+### Principe de base
 
-### Préparation des données
+Le système Ripley implémente un mécanisme de synchronisation bidirectionnelle où :
+
+1. **Le client envoie ses modifications** : Les actions de réduction (reducers) qui modifient partiellement l'état des acteurs
+2. **Le serveur traite et répond** : Il applique ces actions, génère de nouvelles persistances complètes et retourne toutes les actions manquantes
+3. **Le client applique la vérité serveur** : Il reçoit et applique les actions `persist` qui contiennent l'état complet des acteurs
+
+### Cycle de synchronisation
+
+Chaque cycle de synchronisation suit ces étapes :
+
+1. **Préparation client** : Extraction des actions non synchronisées et marquage temporaire avec un commitId zéro
+2. **Transmission** : Envoi des actions et des derniers commitIds connus au serveur
+3. **Traitement serveur** : Application des actions client, génération de nouvelles persistances et récupération des actions manquantes
+4. **Application client** : Traitement par lots des actions serveur et mise à jour des commitIds
+5. **Finalisation** : Remplacement des commitIds zéro par les commitIds serveur définitifs
+
+```mermaid
+flowchart TD
+    A[Client: Actions locales] --> B[Marquage commitId zéro]
+    B --> C[Envoi au serveur]
+    C --> D[Serveur: Application actions]
+    D --> E[Génération persist complètes]
+    E --> F[Récupération actions manquantes]
+    F --> G[Retour au client]
+    G --> H[Application par lots]
+    H --> I[Mise à jour commitIds]
+    I --> J[Synchronisation terminée]
+```
+
+### Synchronisation côté client
+
+#### Préparation des données
 
 La quête `_ripleyPrepareSync` prépare les données pour la synchronisation :
 
@@ -50,7 +83,7 @@ La quête `_ripleyPrepareSync` prépare les données pour la synchronisation :
 2. **Récupération des actions** : Extrait les actions non synchronisées depuis le dernier commit via `getDataForSync`
 3. **Marquage temporaire** : Assigne un commitId zéro aux actions en cours de synchronisation pour éviter leur renvoi en cas d'interruption
 
-### Processus de synchronisation
+#### Processus de synchronisation
 
 La quête `ripleyClient` orchestre le processus complet :
 
@@ -61,9 +94,9 @@ La quête `ripleyClient` orchestre le processus complet :
 
 Le client maintient un verrou par base de données pour éviter les synchronisations concurrentes et utilise un système de compteurs (`ripley.thinking`) pour empêcher l'arrêt pendant une synchronisation active.
 
-## Synchronisation côté serveur
+### Synchronisation côté serveur
 
-### Traitement des actions client
+#### Traitement des actions client
 
 La quête `ripleyServer` traite les demandes de synchronisation :
 
@@ -73,7 +106,7 @@ La quête `ripleyServer` traite les demandes de synchronisation :
 4. **Application des actions** : Exécute les actions client via la quête `$4ellen` qui rejoue les actions et génère de nouvelles persistances
 5. **Génération de nouvelles persistances** : Crée de nouvelles actions persist avec un commitId serveur unique
 
-### Récupération des actions manquantes
+#### Récupération des actions manquantes
 
 Le serveur identifie et retourne les actions que le client n'a pas encore reçues :
 
@@ -100,9 +133,50 @@ sequenceDiagram
     S->>DB: Commit transaction
 ```
 
-## Gestion des commits
+## Conceptes
 
-### Système de commitId
+### Actions partielles vs persistances complètes
+
+Le système Ripley repose sur une distinction fondamentale entre deux types d'actions :
+
+#### Actions de réduction (côté client)
+
+- **Nature** : Modifications partielles de l'état d'un acteur
+- **Contenu** : Seulement les propriétés modifiées
+- **Origine** : Générées par les quêtes des acteurs lors des interactions utilisateur
+- **Exemple** : `{type: 'setName', payload: {name: 'nouveau nom'}}`
+
+#### Actions de persistance (côté serveur)
+
+- **Nature** : État complet de l'acteur après application des modifications
+- **Contenu** : Toutes les propriétés de l'état de l'acteur
+- **Origine** : Générées automatiquement par le serveur après traitement des actions client
+- **Exemple** : `{type: 'persist', payload: {state: {id: 'actor@123', name: 'nouveau nom', status: 'active', ...}}}`
+
+### Flux de transformation
+
+1. **Client → Serveur** : Actions partielles représentant les intentions de modification
+2. **Serveur** : Application des actions partielles sur l'état existant des acteurs
+3. **Serveur → Client** : Actions persist contenant l'état complet résultant
+
+Cette approche garantit que :
+
+- Le serveur reste la source de vérité pour l'état complet
+- Les clients reçoivent toujours un état cohérent et complet
+- Les conflits sont résolus côté serveur lors de l'application des actions
+- L'ordre des modifications est préservé grâce aux commitIds
+
+### Avantages du modèle
+
+- **Cohérence** : L'état complet est toujours fourni par le serveur
+- **Résolution de conflits** : Les modifications concurrentes sont traitées dans l'ordre des commits
+- **Simplicité client** : Les clients n'ont pas besoin de gérer la fusion d'états partiels
+- **Traçabilité** : Chaque modification est tracée avec son commitId d'origine
+- **Récupération** : En cas d'interruption, l'état complet peut être restauré depuis les actions persist
+
+### Gestion des commits
+
+#### Système de commitId
 
 Chaque action possède un `commitId` unique (UUID v4) qui permet :
 
@@ -111,7 +185,7 @@ Chaque action possède un `commitId` unique (UUID v4) qui permet :
 - **Récupération** : Reprendre une synchronisation interrompue au bon endroit
 - **Déduplication** : Éviter le traitement multiple des mêmes actions
 
-### États des commits
+#### États des commits
 
 Les actions peuvent avoir différents états de commit :
 
@@ -119,22 +193,22 @@ Les actions peuvent avoir différents états de commit :
 - **Zéro (UUID zéro)** : Actions en cours de synchronisation (marquage temporaire via `prepareDataForSync`)
 - **UUID valide** : Actions synchronisées avec succès
 
-### Vérification de cohérence
+#### Vérification de cohérence
 
 Le système vérifie la cohérence des commits entre client et serveur via `ripleyCheckForCommitId` pour s'assurer que les bases de données sont compatibles avant la synchronisation. Si aucun commitId client n'est reconnu par le serveur, cela indique une incompatibilité nécessitant un bootstrap complet.
 
-## Traitement par lots
+### Traitement par lots
 
-### Calcul des étapes
+#### Calcul des étapes
 
-La fonction `computeRipleySteps` détermine comment grouper les actions pour le traitement par lots, en respectant la contrainte critique que toutes les actions d'un même commitId doivent être dans le même lot. Cette fonction prend en compte :
+La fonction `computeRipleySteps` dans `lib/ripleyHelpers.js` détermine comment grouper les actions pour le traitement par lots, en respectant la contrainte critique que toutes les actions d'un même commitId doivent être dans le même lot. Cette fonction prend en compte :
 
 - **Limite par lot** : Nombre maximum d'actions par étape (défaut : 20)
 - **Intégrité des commits** : Aucun commitId ne peut être divisé entre plusieurs lots
 - **Optimisation** : Maximise le nombre d'actions par lot tout en respectant les contraintes
 - **Compatibilité** : Gère les anciens serveurs qui ne fournissent pas de compteurs de commits
 
-### Application séquentielle
+#### Application séquentielle
 
 Les actions sont appliquées par lots pour :
 
@@ -157,16 +231,16 @@ flowchart LR
     H --> I
 ```
 
-## Gestion des erreurs et récupération
+### Gestion des erreurs et récupération
 
-### Mécanismes de récupération
+#### Mécanismes de récupération
 
 - **Actions zéro** : Les actions avec commitId zéro sont détectées au démarrage via `getZeroActions` et retraitées ou nettoyées selon leur état sur le serveur
 - **Rollback transactionnel** : En cas d'erreur, les transactions Cryo sont annulées automatiquement
 - **Retry automatique** : Les synchronisations échouées sont relancées automatiquement par le système de debounce
 - **Restauration d'état** : Les commitIds zéro sont restaurés à NULL en cas d'échec via `prepareDataForSync` pour permettre une nouvelle tentative
 
-### Gestion de l'arrêt
+#### Gestion de l'arrêt
 
 La quête `tryShutdown` permet un arrêt propre du système :
 
@@ -175,9 +249,9 @@ La quête `tryShutdown` permet un arrêt propre du système :
 3. **Rapport d'état** : Indique les bases de données encore en cours de traitement
 4. **Timeout** : Limite l'attente pour éviter un blocage indéfini (vérification toutes les secondes)
 
-## Surveillance et performance
+### Surveillance et performance
 
-### Indicateurs de synchronisation
+#### Indicateurs de synchronisation
 
 Le système fournit des indicateurs de progression via les événements `greathall::<perf>` :
 
@@ -186,7 +260,7 @@ Le système fournit des indicateurs de progression via les événements `greatha
 - **Performance réseau** : Temps de traitement et détection des déconnexions/latences via HordesSync
 - **Métriques de débit** : Temps de traitement par lot avec logging détaillé
 
-### Optimisations
+#### Optimisations
 
 - **Traitement parallèle** : Plusieurs bases peuvent se synchroniser simultanément (limite de 4 par défaut dans HordesSync)
 - **Lots adaptatifs** : La taille des lots s'adapte au contenu et aux contraintes de commitId
@@ -195,18 +269,18 @@ Le système fournit des indicateurs de progression via les événements `greatha
 - **Surveillance réseau** : Détection automatique des déconnexions et adaptation du comportement
 - **Seuil de reporting** : Les synchronisations de moins d'1 seconde ne sont pas reportées pour éviter le spam
 
-## Bootstrap et initialisation
+### Bootstrap et initialisation
 
-### Processus de bootstrap
+#### Processus de bootstrap
 
-Le système HordesSync gère l'initialisation et le bootstrap des bases de données :
+Le système HordesSync dans `lib/sync/hordesSync.js` gère l'initialisation et le bootstrap des bases de données :
 
 1. **Vérification d'existence** : Contrôle si la base de données existe et si elle est vide via `cryo.isEmpty`
 2. **Validation de cohérence** : Vérifie que les commitIds locaux sont connus du serveur via `ripleyCheckBeforeSync`
 3. **Bootstrap automatique** : En cas d'incohérence, récupère toutes les actions persist du serveur via `cryo.getAllPersist`
 4. **Renommage de sauvegarde** : Sauvegarde l'ancienne base avant le bootstrap si nécessaire via `cryo.bootstrapActions`
 
-### Gestion des connexions
+#### Gestion des connexions
 
 Le système surveille la connectivité réseau et adapte son comportement :
 

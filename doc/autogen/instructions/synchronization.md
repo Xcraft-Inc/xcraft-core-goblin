@@ -35,6 +35,10 @@ Le README généré doit être en **Markdown** et suivre cette structure :
 ## Fonctionnement
 
 (Explications du fonctionnement en respectant les objectifs, utiliser des diagrammes quand c'est pertinant, ...)
+
+## Conceptes
+
+(Explications du concepte sous-jacant où le client envoie des actions de reducer qui modifient qu'une partie du state et le serveur retourne des actions `persist` qui rendent le state en entier)
 ```
 
 ## Points d'attention particuliers
