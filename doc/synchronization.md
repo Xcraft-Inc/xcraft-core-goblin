@@ -60,19 +60,6 @@ Chaque cycle de synchronisation suit ces étapes :
 4. **Application client** : Traitement par lots des actions serveur et mise à jour des commitIds
 5. **Finalisation** : Remplacement des commitIds zéro par les commitIds serveur définitifs
 
-```mermaid
-flowchart TD
-    A[Client: Actions locales] --> B[Marquage commitId zéro]
-    B --> C[Envoi au serveur]
-    C --> D[Serveur: Application actions]
-    D --> E[Génération persist complètes]
-    E --> F[Récupération actions manquantes]
-    F --> G[Retour au client]
-    G --> H[Application par lots]
-    H --> I[Mise à jour commitIds]
-    I --> J[Synchronisation terminée]
-```
-
 ### Synchronisation côté client
 
 #### Préparation des données
