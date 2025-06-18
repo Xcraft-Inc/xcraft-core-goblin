@@ -66,6 +66,7 @@ Le Guild Enforcer contrôle l'accès aux quêtes via :
 const {Elf} = require('xcraft-core-goblin');
 const {string, option, number} = require('xcraft-core-stones');
 
+// Forme de l'état (avec typage)
 class MyLogicShape {
   id = string;
   data = option(number);
@@ -73,7 +74,7 @@ class MyLogicShape {
 
 class MyLogicState extends Elf.Sculpt(MyLogicShape) {}
 
-// Logique d'état
+// Logique d'état (avec persistance)
 class MyLogic extends Elf.Archetype {
   static db = 'myapp';
   state = new MyLogicState();
@@ -97,11 +98,13 @@ class MyActor extends Elf {
 
   async create(id, desktopId, initialData) {
     this.logic.create(id, initialData);
+    await this.persist();
     return this;
   }
 
   async updateData(newData) {
     this.logic.updateData(newData);
+    await this.persist();
   }
 
   delete() {
@@ -110,7 +113,7 @@ class MyActor extends Elf {
 }
 
 // Configuration
-module.exports.xcraftCommands = Elf.birth(MyActor, MyLogic);
+exports.xcraftCommands = Elf.birth(MyActor, MyLogic);
 ```
 
 ### Utilisation d'un acteur
@@ -144,7 +147,8 @@ Goblin.registerQuest('counter', 'increment', function* (quest) {
   quest.do();
 });
 
-module.exports = Goblin.configure('counter', logicState, logicHandlers);
+exports.xcraftCommands = () =>
+  Goblin.configure('counter', logicState, logicHandlers);
 ```
 
 ## Interactions avec d'autres modules
