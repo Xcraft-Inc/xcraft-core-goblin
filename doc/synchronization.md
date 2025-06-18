@@ -61,19 +61,6 @@ La quête `ripleyClient` orchestre le processus complet :
 
 Le client maintient un verrou par base de données pour éviter les synchronisations concurrentes et utilise un système de compteurs (`ripley.thinking`) pour empêcher l'arrêt pendant une synchronisation active.
 
-```mermaid
-flowchart TD
-    A[Début ripleyClient] --> B{Arrêt en cours?}
-    B -->|Oui| Z[Fin]
-    B -->|Non| C[Verrouillage mutex]
-    C --> D[Traitement actions zéro]
-    D --> E[Préparation sync]
-    E --> F[Envoi au serveur]
-    F --> G[Application par lots]
-    G --> H[Mise à jour commitIds]
-    H --> Z
-```
-
 ## Synchronisation côté serveur
 
 ### Traitement des actions client
@@ -207,20 +194,6 @@ Le système fournit des indicateurs de progression via les événements `greatha
 - **Debounce intelligent** : Évite les synchronisations trop fréquentes (500ms de délai)
 - **Surveillance réseau** : Détection automatique des déconnexions et adaptation du comportement
 - **Seuil de reporting** : Les synchronisations de moins d'1 seconde ne sont pas reportées pour éviter le spam
-
-```mermaid
-graph TD
-    A[Surveillance] --> B[État sync par DB]
-    A --> C[Progression lots]
-    A --> D[Performance réseau]
-    A --> E[Métriques débit]
-    B --> F[Événements greathall]
-    C --> F
-    D --> F
-    E --> F
-    F --> G[Interface utilisateur]
-    F --> H[Monitoring système]
-```
 
 ## Bootstrap et initialisation
 
