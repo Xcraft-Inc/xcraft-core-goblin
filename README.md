@@ -513,11 +513,11 @@ Wrapper pour l'API `quest.me` des acteurs Elf. Fournit une interface unifiée po
 
 #### Méthodes publiques
 
-- **`newQuestFeed()`** — Crée un feed temporaire avec nettoyage automatique via quest.defer.
+- **`newQuestFeed(prefix)`** — Crée un feed temporaire avec nettoyage automatique via quest.defer.
 - **`killFeed(feedId, xcraftRPC)`** — Supprime un feed et tous ses acteurs.
 - **`kill(ids, parents, feed, xcraftRPC)`** — Supprime des acteurs spécifiques.
 - **`persist(...args)`** — Persiste l'état de l'acteur avec synchronisation automatique.
-- **`createFeed()`** — Méthode statique pour créer un feed temporaire.
+- **`createFeed(prefix)`** — Méthode statique pour créer un feed temporaire.
 
 ### `lib/elf/runner.js`
 
