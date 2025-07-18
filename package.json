@@ -24,7 +24,16 @@
     "type": "git",
     "url": "git+https://github.com/Xcraft-Inc/xcraft-core-goblin.git"
   },
-  "author": "Samuel Loup & Mathieu Schroeter",
+  "author": "Epsitec SA",
+  "contributors": [
+    "Mathieu Schroeter <schroeter@epsitec.ch>",
+    "Samuel Loup <loup@epsitec.ch>",
+    "Gillian Fries <fries@epsitec.ch>",
+    "Yannick Vessaz <vessaz@epsitec.ch>",
+    "Jonny Quarta <quarta@epsitec.ch>",
+    "Catia Guidi <guidi@epsitec.ch>",
+    "Roger Vuistiner <vuistiner@epsitec.ch>"
+  ],
   "license": "MIT",
   "dependencies": {
     "fs-extra": "^11.3.0",
