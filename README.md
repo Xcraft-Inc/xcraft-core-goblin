@@ -28,6 +28,7 @@ Le module s'organise autour de plusieurs composants principaux :
 - **GuildEnforcer** : Système de sécurité et contrôle d'accès
 - **Ripley** : Système de persistance et synchronisation d'état
 - **Cache** : Gestion du cache avec TTL et ranking
+- **Cryo Manager** : Gestionnaire centralisé pour les opérations de lecture et recherche dans Cryo
 
 ## Fonctionnement global
 
@@ -399,6 +400,7 @@ Gestionnaire centralisé pour les opérations Cryo. Fournit une interface unifi�
 - **`search2(quest, db, searchQuery, locales, scopes, limit)`** — Recherche textuelle avancée avec filtres.
 - **`searchDistance(quest, db, vectors, limit)`** — Recherche vectorielle par similarité.
 - **`searchDistance2(quest, db, vectors, locales, scopes, limit)`** — Recherche vectorielle avec filtres.
+- **`getDistinctScopes(quest, db)`** — Récupère tous les scopes disponibles dans la base.
 - **`searchRaw(quest, db, pattern, regex, lastOnly)`** — Recherche brute avec expressions régulières.
 - **`getState(quest, db, goblinId, shape, type)`** — Récupère l'état d'un acteur depuis Cryo.
 - **`getIds(quest, db, goblinType, options)`** — Récupère la liste des IDs d'un type d'acteur.
