@@ -13,6 +13,7 @@ class SimpleElfState extends Elf.Sculpt(SimpleElfShape) {}
 class SimpleElfLogic extends Elf.Archetype {
   static db = 'chest';
   static indices = ['id', 'name', 'generation'];
+
   state = new SimpleElfState();
 
   create(id, value) {
