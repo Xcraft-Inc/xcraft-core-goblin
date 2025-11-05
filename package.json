@@ -48,6 +48,7 @@
     "xcraft-core-cryo": "^2.33.0",
     "xcraft-core-etc": "^3.0.0",
     "xcraft-core-bus": "^5.0.0",
+    "xcraft-core-horde": "^3.6.0",
     "xcraft-core-host": "^3.7.0",
     "xcraft-core-log": "^2.2.0",
     "xcraft-core-pickaxe": "^0.1.23",
