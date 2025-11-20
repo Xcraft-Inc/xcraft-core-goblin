@@ -3,7 +3,7 @@
 const {expect} = require('chai');
 
 describe('xcraft.goblin.elf.ripley', function () {
-  const {computeRipleySteps} = require('../lib/ripleyHelpers.js');
+  const {computeRipleySteps} = require('../lib/ripleySync.js');
 
   const persisted8 = [
     {data: {commitId: 'A'}},
