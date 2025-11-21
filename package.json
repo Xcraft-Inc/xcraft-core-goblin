@@ -1,6 +1,6 @@
 {
   "name": "xcraft-core-goblin",
-  "version": "5.53.3",
+  "version": "5.54.0",
   "description": "Xcraft uService API",
   "main": "./lib/index.js",
   "engines": {
