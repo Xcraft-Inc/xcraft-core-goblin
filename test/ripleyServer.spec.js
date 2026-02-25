@@ -136,6 +136,72 @@ describe('xcraft.goblin.elf.ripley', function () {
     });
   });
 
+  it('ripleyCheckForCommitId count reflects new persists since known commitId', async function () {
+    this.timeout(15000);
+
+    /** @this {Elf} */
+    await runner.it(async function () {
+      const xBus = require('xcraft-core-bus');
+      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+
+      const db = SimpleElfLogic.db;
+      const id1 = `simpleElf@${this.quest.uuidV4()}`;
+      const id2 = `simpleElf@${this.quest.uuidV4()}`;
+      const id3 = `simpleElf@${this.quest.uuidV4()}`;
+
+      const action1 = {
+        action: JSON.stringify({
+          type: 'update',
+          payload: {value: 'Chevalier Bragon'},
+          meta: {id: id1},
+        }),
+      };
+      const action2 = {
+        action: JSON.stringify({
+          type: 'update',
+          payload: {value: 'Princesse Mara'},
+          meta: {id: id2},
+        }),
+      };
+      const action3 = {
+        action: JSON.stringify({
+          type: 'update',
+          payload: {value: 'Pélisse'},
+          meta: {id: id3},
+        }),
+      };
+
+      const result1 = await this.quest.cmd('goblin.ripleyServer', {
+        db,
+        actions: [action1],
+        commitIds: [],
+        userId: 'user@test',
+      });
+
+      /* Two new actions */
+      await this.quest.cmd('goblin.ripleyServer', {
+        db,
+        actions: [action2],
+        commitIds: [],
+        userId: 'user@test',
+      });
+      await this.quest.cmd('goblin.ripleyServer', {
+        db,
+        actions: [action3],
+        commitIds: [],
+        userId: 'user@test',
+      });
+
+      const result = await this.quest.cmd('goblin.ripleyCheckForCommitId', {
+        db,
+        commitIds: [result1.newCommitId],
+      });
+
+      expect(result.check).to.be.equal(true);
+      expect(result.count).to.be.equal(2); /* 2 persists since commitId1 */
+    });
+  });
+
   /// ripleyServer /////////////////////////////////////////////////////////////
 
   it('ripleyServer assigns a commitId to staged actions', async function () {
@@ -373,6 +439,55 @@ describe('xcraft.goblin.elf.ripley', function () {
       /* Check that the final state is v2 */
       const state = JSON.parse(result2.persisted[0].data.action);
       expect(state.payload.state.value).to.equal('v2');
+    });
+  });
+
+  it('ripleyServer with no actions and no commitId returns last server state', async function () {
+    this.timeout(15000);
+
+    /** @this {Elf} */
+    await runner.it(async function () {
+      const xBus = require('xcraft-core-bus');
+      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+
+      const db = SimpleElfLogic.db;
+      const id1 = `simpleElf@${this.quest.uuidV4()}`;
+      const id2 = `simpleElf@${this.quest.uuidV4()}`;
+
+      const action1 = {
+        action: JSON.stringify({
+          type: 'update',
+          payload: {value: 'Chevalier Bragon'},
+          meta: {id: id1},
+        }),
+      };
+      const action2 = {
+        action: JSON.stringify({
+          type: 'update',
+          payload: {value: 'Princesse Mara'},
+          meta: {id: id2},
+        }),
+      };
+
+      await this.quest.cmd('goblin.ripleyServer', {
+        db,
+        actions: [action1, action2],
+        commitIds: [],
+        userId: 'user@test',
+      });
+
+      const result = await this.quest.cmd('goblin.ripleyServer', {
+        db,
+        actions: [],
+        commitIds: [] /* Empty client */,
+        userId: 'user@test',
+      });
+
+      /* No new actions → no new commit */
+      expect(result.newCommitId).to.be.equal(null);
+      /* Two actions with the stream */
+      expect(result.xcraftStream.streamId).to.be.a('string').with.length.gt(0);
+      expect(result.count).to.be.gte(2); /* Maybe more because other tests */
     });
   });
 
