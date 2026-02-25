@@ -1,6 +1,7 @@
 const {expect} = require('chai');
 const {Elf} = require('xcraft-core-goblin/lib/test.js');
 const {SimpleElfLogic} = require('./simpleElf.js');
+const {v4: uuidV4} = require('uuid');
 
 describe('xcraft.goblin.elf.ripley', function () {
   let runner;
@@ -12,6 +13,14 @@ describe('xcraft.goblin.elf.ripley', function () {
 
   this.afterAll(function () {
     runner.dispose();
+  });
+
+  const makeAction = (value, id = `simpleElf@${uuidV4()}`) => ({
+    action: JSON.stringify({
+      type: 'update',
+      payload: {value},
+      meta: {id},
+    }),
   });
 
   /// ripleyCheckForCommitId ///////////////////////////////////////////////////
@@ -39,15 +48,7 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id = `simpleElf@${this.quest.uuidV4()}`;
-
-      const action = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id},
-        }),
-      };
+      const action = makeAction('Chevalier Bragon');
 
       await this.quest.cmd('goblin.ripleyServer', {
         db,
@@ -73,15 +74,7 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id = `simpleElf@${this.quest.uuidV4()}`;
-
-      const action = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id},
-        }),
-      };
+      const action = makeAction('Chevalier Bragon');
 
       const result1 = await this.quest.cmd('goblin.ripleyServer', {
         db,
@@ -109,15 +102,7 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id = `simpleElf@${this.quest.uuidV4()}`;
-
-      const action = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id},
-        }),
-      };
+      const action = makeAction('Chevalier Bragon');
 
       const result1 = await this.quest.cmd('goblin.ripleyServer', {
         db,
@@ -145,31 +130,9 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id1 = `simpleElf@${this.quest.uuidV4()}`;
-      const id2 = `simpleElf@${this.quest.uuidV4()}`;
-      const id3 = `simpleElf@${this.quest.uuidV4()}`;
-
-      const action1 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id: id1},
-        }),
-      };
-      const action2 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Princesse Mara'},
-          meta: {id: id2},
-        }),
-      };
-      const action3 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Pélisse'},
-          meta: {id: id3},
-        }),
-      };
+      const action1 = makeAction('Chevalier Bragon');
+      const action2 = makeAction('Princesse Mara');
+      const action3 = makeAction('Pélisse');
 
       const result1 = await this.quest.cmd('goblin.ripleyServer', {
         db,
@@ -213,16 +176,7 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id = `simpleElf@${this.quest.uuidV4()}`;
-
-      /* Simulate non-persist action (commitId null) */
-      const action = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id},
-        }),
-      };
+      const action = makeAction('Chevalier Bragon');
 
       const result = await this.quest.cmd('goblin.ripleyServer', {
         db,
@@ -266,15 +220,7 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id = `simpleElf@${this.quest.uuidV4()}`;
-
-      const action = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id},
-        }),
-      };
+      const action = makeAction('Chevalier Bragon');
 
       const result1 = await this.quest.cmd('goblin.ripleyServer', {
         db,
@@ -306,23 +252,8 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id1 = `simpleElf@${this.quest.uuidV4()}`;
-      const id2 = `simpleElf@${this.quest.uuidV4()}`;
-
-      const action1 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id: id1},
-        }),
-      };
-      const action2 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Princesse Mara'},
-          meta: {id: id2},
-        }),
-      };
+      const action1 = makeAction('Chevalier Bragon');
+      const action2 = makeAction('Princesse Mara');
 
       const result = await this.quest.cmd('goblin.ripleyServer', {
         db,
@@ -348,23 +279,8 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id1 = `simpleElf@${this.quest.uuidV4()}`;
-      const id2 = `simpleElf@${this.quest.uuidV4()}`;
-
-      const action1 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id: id1},
-        }),
-      };
-      const action2 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Princesse Mara'},
-          meta: {id: id2},
-        }),
-      };
+      const action1 = makeAction('Chevalier Bragon');
+      const action2 = makeAction('Princesse Mara');
 
       /* Sync 1 : the client sends actions, received commitId1 */
       const result1 = await this.quest.cmd('goblin.ripleyServer', {
@@ -408,18 +324,10 @@ describe('xcraft.goblin.elf.ripley', function () {
       const db = SimpleElfLogic.db;
       const id = `simpleElf@${this.quest.uuidV4()}`;
 
-      const makeAction = (value) => ({
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value},
-          meta: {id},
-        }),
-      });
-
       /* First sync: create the elf */
       const result1 = await this.quest.cmd('goblin.ripleyServer', {
         db,
-        actions: [makeAction('v1')],
+        actions: [makeAction('v1', id)],
         commitIds: [],
         userId: 'user@test',
       });
@@ -427,7 +335,7 @@ describe('xcraft.goblin.elf.ripley', function () {
       /* Second sync: update the same elf */
       const result2 = await this.quest.cmd('goblin.ripleyServer', {
         db,
-        actions: [makeAction('v2')],
+        actions: [makeAction('v2', id)],
         commitIds: [result1.newCommitId],
         userId: 'user@test',
       });
@@ -451,23 +359,8 @@ describe('xcraft.goblin.elf.ripley', function () {
       await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
 
       const db = SimpleElfLogic.db;
-      const id1 = `simpleElf@${this.quest.uuidV4()}`;
-      const id2 = `simpleElf@${this.quest.uuidV4()}`;
-
-      const action1 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Chevalier Bragon'},
-          meta: {id: id1},
-        }),
-      };
-      const action2 = {
-        action: JSON.stringify({
-          type: 'update',
-          payload: {value: 'Princesse Mara'},
-          meta: {id: id2},
-        }),
-      };
+      const action1 = makeAction('Chevalier Bragon');
+      const action2 = makeAction('Princesse Mara');
 
       await this.quest.cmd('goblin.ripleyServer', {
         db,
