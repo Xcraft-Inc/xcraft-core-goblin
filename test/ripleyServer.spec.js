@@ -15,13 +15,20 @@ describe('xcraft.goblin.elf.ripley', function () {
     runner.dispose();
   });
 
-  const makeAction = (value, id = `simpleElf@${uuidV4()}`) => ({
-    action: JSON.stringify({
-      type: 'update',
-      payload: {value},
-      meta: {id},
-    }),
-  });
+  async function loadSimpleElf(quest) {
+    const xBus = require('xcraft-core-bus');
+    await xBus.loadModule(quest.resp, ['simpleElf.js'], __dirname, {});
+  }
+
+  function makeAction(value, id = `simpleElf@${uuidV4()}`) {
+    return {
+      action: JSON.stringify({
+        type: 'update',
+        payload: {value},
+        meta: {id},
+      }),
+    };
+  }
 
   /// ripleyCheckForCommitId ///////////////////////////////////////////////////
 
@@ -44,8 +51,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action = makeAction('Chevalier Bragon');
@@ -70,8 +76,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action = makeAction('Chevalier Bragon');
@@ -98,8 +103,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action = makeAction('Chevalier Bragon');
@@ -126,8 +130,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action1 = makeAction('Chevalier Bragon');
@@ -172,8 +175,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action = makeAction('Chevalier Bragon');
@@ -216,8 +218,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action = makeAction('Chevalier Bragon');
@@ -248,8 +249,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action1 = makeAction('Chevalier Bragon');
@@ -275,8 +275,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action1 = makeAction('Chevalier Bragon');
@@ -318,8 +317,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const id = `simpleElf@${this.quest.uuidV4()}`;
@@ -355,8 +353,7 @@ describe('xcraft.goblin.elf.ripley', function () {
 
     /** @this {Elf} */
     await runner.it(async function () {
-      const xBus = require('xcraft-core-bus');
-      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+      await loadSimpleElf(this.quest);
 
       const db = SimpleElfLogic.db;
       const action1 = makeAction('Chevalier Bragon');
