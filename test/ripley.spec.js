@@ -5,6 +5,39 @@ const {expect} = require('chai');
 describe('xcraft.goblin.elf.ripley', function () {
   const {computeRipleySteps} = require('../lib/ripleySync.js');
 
+  function checkStepSum(persisted, commitCnt, limit) {
+    const steps = computeRipleySteps(persisted, commitCnt, limit);
+    const sum = steps.reduce((acc, s) => acc + s, 0);
+    expect(sum).to.equal(
+      persisted.length,
+      `steps sum ${sum} !== persisted.length ${persisted.length} (limit=${limit})`
+    );
+    return steps;
+  }
+
+  function checkNoSplitCommit(persisted, commitCnt, limit) {
+    const steps = computeRipleySteps(persisted, commitCnt, limit);
+    let pos = 0;
+    for (const step of steps) {
+      const chunk = persisted.slice(pos, pos + step);
+      const commitIds = chunk.map((p) => p.data.commitId);
+
+      /* The last commitId of the chunk must not appears in the next chunk */
+      const lastId = commitIds.at(-1);
+      const next = persisted.slice(pos + step, pos + step + 1);
+      if (next.length) {
+        expect(next[0].data.commitId).to.not.equal(
+          lastId,
+          `commitId "${lastId}" was split across steps at limit=${limit}`
+        );
+      }
+
+      pos += step;
+    }
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+
   const persisted8 = [
     {data: {commitId: 'A'}},
     {data: {commitId: 'B'}},
@@ -54,6 +87,20 @@ describe('xcraft.goblin.elf.ripley', function () {
     const steps = computeRipleySteps(persisted8, commitCnt8, 10);
     expect(steps).to.be.eql([8]);
   });
+
+  it('computeSteps sum invariant holds for persisted8', function () {
+    for (const limit of [1, 2, 3, 4, 5, 6, 10, 20, 100]) {
+      checkStepSum(persisted8, commitCnt8, limit);
+    }
+  });
+
+  it('computeSteps no commitId split for persisted8', function () {
+    for (const limit of [1, 2, 3, 4, 5, 6, 10, 20]) {
+      checkNoSplitCommit(persisted8, commitCnt8, limit);
+    }
+  });
+
+  //////////////////////////////////////////////////////////////////////////////
 
   const persisted22 = [
     {data: {commitId: 'A'}},
@@ -120,5 +167,40 @@ describe('xcraft.goblin.elf.ripley', function () {
   it('computeSteps 22 (new server, limit 10)', function () {
     const steps = computeRipleySteps(persisted22, commitCnt22, 10);
     expect(steps).to.be.eql([9, 10, 3]);
+  });
+
+  it('computeSteps sum invariant holds for persisted22', function () {
+    for (const limit of [1, 2, 3, 4, 5, 6, 10, 20, 100]) {
+      checkStepSum(persisted22, commitCnt22, limit);
+    }
+  });
+
+  it('computeSteps no commitId split for persisted22', function () {
+    for (const limit of [1, 2, 3, 4, 5, 6, 10, 20]) {
+      checkNoSplitCommit(persisted22, commitCnt22, limit);
+    }
+  });
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  it('computeSteps empty persisted', function () {
+    const steps = computeRipleySteps([], {}, 4);
+    expect(steps).to.be.eql([]);
+  });
+
+  it('computeSteps single action', function () {
+    const steps = computeRipleySteps([{data: {commitId: 'A'}}], {A: 1}, 4);
+    expect(steps).to.be.eql([1]);
+  });
+
+  it('computeSteps commitId larger than limit stays in one step', function () {
+    const persisted = Array.from({length: 25}, () => ({
+      data: {commitId: 'BIG'},
+    }));
+    const commitCnt = {BIG: 25};
+
+    const steps = computeRipleySteps(persisted, commitCnt, 10);
+    expect(steps).to.be.eql([25]); // tout en un seul step, pas découpé
+    checkNoSplitCommit(persisted, commitCnt, 10);
   });
 });
