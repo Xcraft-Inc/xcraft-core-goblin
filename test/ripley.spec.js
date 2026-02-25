@@ -200,7 +200,7 @@ describe('xcraft.goblin.elf.ripley', function () {
     const commitCnt = {BIG: 25};
 
     const steps = computeRipleySteps(persisted, commitCnt, 10);
-    expect(steps).to.be.eql([25]); // tout en un seul step, pas découpé
+    expect(steps).to.be.eql([25]); /* No slices */
     checkNoSplitCommit(persisted, commitCnt, 10);
   });
 });
