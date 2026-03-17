@@ -23,6 +23,12 @@ module.exports = [
     default: [],
   },
   {
+    type: 'input',
+    name: 'actionsSync.bootstrapLimit',
+    massage: 'bootstrap needed if the distance is more than this value',
+    default: 20000,
+  },
+  {
     type: 'confirm',
     name: 'enableGuildEnforcerCache',
     message: 'enable the guild enforcer SQLite cache database',
