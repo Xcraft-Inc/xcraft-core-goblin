@@ -37,7 +37,7 @@ sequenceDiagram
     S->>S: Traite actions client
     S->>DB: Persiste nouvelles actions
     S->>S: Récupère actions manquantes
-    S->>C: Retourne {newCommitId, persisted, commitCnt}
+    S->>C: Retourne {newCommitId, persisted, xcraftStream?}
     C->>C: Applique actions serveur
     C->>DB: Met à jour commitIds
 ```
@@ -75,11 +75,44 @@ La quête `_ripleyPrepareSync` prépare les données pour la synchronisation :
 La quête `ripleyClient` orchestre le processus complet :
 
 1. **Vérification préalable** : S'assure que la synchronisation n'est pas en cours d'arrêt via le flag `ripley.shuttingDown`
-2. **Gestion des actions zéro** : Traite les actions interrompues lors d'une synchronisation précédente en vérifiant leur existence côté serveur
+2. **Gestion des actions zéro** : Traite les actions interrompues lors d'une synchronisation précédente en vérifiant leur existence côté serveur via `ripleyPersistFromZero`. Si les actions sont connues du serveur, leurs rowids sont conservés pour une mise à jour ultérieure des commitIds ; sinon, les marqueurs zéro sont effacés (retour à NULL) pour permettre un nouvel envoi
 3. **Envoi au serveur** : Transmet les actions et commitIds au serveur via `ripleyServer`
-4. **Application des réponses** : Traite les actions retournées par le serveur par lots via `_ripleyApplyPersisted`
+4. **Réception d'un flux de données** : Si le serveur retourne un `xcraftStream`, le client lit ce flux via `RipleyWriter` qui applique les actions par lots progressifs
+5. **Application des persistances directes** : Les actions `persisted` retournées directement (sans flux) sont appliquées via `applyPersisted`
+6. **Finalisation des commitIds** : Les rowids des actions marquées zéro et ceux des actions nouvellement envoyées sont mis à jour avec le `newCommitId` serveur via `updateActionsAfterSync`
 
-Le client maintient un verrou par base de données pour éviter les synchronisations concurrentes et utilise un système de compteurs (`ripley.thinking`) pour empêcher l'arrêt pendant une synchronisation active.
+Le client maintient un verrou par base de données (`ripleyClient-${db}`) pour éviter les synchronisations concurrentes et utilise un système de compteurs (`ripley.thinking`) pour empêcher l'arrêt pendant une synchronisation active.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Serveur
+    participant DB_C as Cryo Client
+    participant DB_S as Cryo Serveur
+
+    C->>DB_C: getZeroActions → actions interrompues?
+    alt Actions zéro présentes
+        C->>S: ripleyPersistFromZero(goblinIds)
+        S->>DB_S: hasActions(goblinIds)
+        S->>C: arePersisted
+        alt Persistées côté serveur
+            C->>C: Conserver rowids pour mise à jour finale
+        else Non persistées
+            C->>DB_C: prepareDataForSync(rows, zero=false)
+        end
+    end
+    C->>DB_C: _ripleyPrepareSync → stagedActions, commitIds
+    C->>DB_C: Transaction immédiate
+    C->>S: ripleyServer(db, stagedActions, commitIds)
+    S->>C: {newCommitId, persisted, xcraftStream?}
+    C->>DB_C: Commit transaction
+    alt xcraftStream présent
+        C->>C: RipleyWriter.write(chunk) par lots
+        C->>DB_C: applyPersisted par étapes
+    end
+    C->>DB_C: applyPersisted(persisted)
+    C->>DB_C: updateActionsAfterSync(rows, newCommitId)
+```
 
 ### Synchronisation côté serveur
 
@@ -87,40 +120,51 @@ Le client maintient un verrou par base de données pour éviter les synchronisat
 
 La quête `ripleyServer` traite les demandes de synchronisation :
 
-1. **Validation** : Vérifie que la base de données est autorisée dans la liste des bases synchronisables (`dbSyncList`)
-2. **Verrouillage transactionnel** : Utilise une transaction immédiate Cryo pour garantir la cohérence
-3. **Création d'acteurs temporaires** : Instancie les acteurs nécessaires dans le feed système `system@ripley`
-4. **Application des actions** : Exécute les actions client via la quête `$4ellen` qui rejoue les actions et génère de nouvelles persistances
-5. **Génération de nouvelles persistances** : Crée de nouvelles actions persist avec un commitId serveur unique
+1. **Validation** : Vérifie que la base de données est autorisée dans la liste `dbSyncList` (construite depuis `Goblin.getAllRipleyDB()`)
+2. **Verrouillage transactionnel** : Ouvre une transaction immédiate Cryo pour garantir la cohérence
+3. **Reconstitution de l'ordre** : Parcourt les actions en sens inverse pour reconstruire l'ordre chronologique correct (les acteurs doivent être créés dans l'ordre de leur premier commit)
+4. **Création d'acteurs temporaires** : Instancie les acteurs nécessaires dans le feed système `system@ripley` via `quest.create`
+5. **Application des actions** : Exécute les actions client via la quête interne `$4ellen` pour chaque acteur, qui rejoue les actions de réduction et déclenche une persistance avec un nouveau `commitId` serveur
+6. **Récupération des actions manquantes** : Détermine la plage de commits entre le dernier commit client connu et le dernier commit serveur, puis extrait les actions via `getPersistFromRange`
+7. **Commit conditionnel** : Si une plage d'actions doit être extraite, le commit est effectué avant la lecture pour que les nouvelles actions soient visibles par la connexion SQLite secondaire utilisée pour `getPersistFromRange`
 
-#### Récupération des actions manquantes
-
-Le serveur identifie et retourne les actions que le client n'a pas encore reçues :
-
-1. **Détermination de la plage** : Calcule l'intervalle entre le dernier commit client connu et le dernier commit serveur
-2. **Extraction des actions** : Récupère les actions persist dans cette plage via `getPersistFromRange`
-3. **Préservation de l'ordre** : Maintient l'ordre chronologique des commits pour garantir la cohérence, avec les nouvelles actions du client placées en fin de séquence
+Les acteurs temporaires sont détruits en fin de quête via un `quest.defer`.
 
 ```mermaid
 sequenceDiagram
     participant C as Client
     participant S as Serveur
-    participant A as Acteurs
+    participant A as Acteurs temporaires
     participant DB as Cryo
 
-    C->>S: Actions + commitIds
+    C->>S: ripleyServer(db, actions, commitIds)
     S->>S: Validation base autorisée
     S->>DB: Transaction immédiate
-    S->>A: Création acteurs temporaires
-    S->>A: Application actions via $4ellen
-    A->>DB: Nouvelles persistances
-    S->>DB: Récupération actions manquantes
-    S->>C: Actions + nouveau commitId + compteurs
-    S->>A: Suppression acteurs temporaires
+    S->>S: Reconstitution ordre chronologique
+    loop Pour chaque acteur
+        S->>A: quest.create(id, system@ripley)
+        S->>A: $4ellen(actions, newCommitId)
+        A->>DB: persist(state, commitId)
+        A->>S: {action: lastPersistedAction}
+    end
+    S->>DB: hasCommitId(fromCommitId)?
+    S->>DB: countNewPersistsFrom → vérification seuil
     S->>DB: Commit transaction
+    S->>DB: getPersistFromRange(from, to)
+    S->>C: {newCommitId, persisted, xcraftStream, count}
+    S->>A: kill (acteurs temporaires)
 ```
 
-## Conceptes
+#### Détermination de la plage de synchronisation
+
+Le serveur utilise une logique fine pour déterminer quelles actions retourner :
+
+- Si le client fournit des `commitIds`, le serveur cherche le premier qu'il reconnaît (`hasCommitId`)
+- Si aucun `commitId` client n'est connu, la plage commence depuis le début
+- Si des actions viennent d'être créées par `$4ellen`, le `newCommitId` sert de borne haute non-inclusive (ces actions sont déjà dans `persisted`)
+- Sinon, le dernier commit serveur (`getLastCommitId`) sert de borne haute inclusive
+
+## Concepts
 
 ### Actions partielles vs persistances complètes
 
@@ -129,28 +173,28 @@ Le système Ripley repose sur une distinction fondamentale entre deux types d'ac
 #### Actions de réduction (côté client)
 
 - **Nature** : Modifications partielles de l'état d'un acteur
-- **Contenu** : Seulement les propriétés modifiées
+- **Contenu** : Seulement les propriétés modifiées, ou une indication de l'opération effectuée
 - **Origine** : Générées par les quêtes des acteurs lors des interactions utilisateur
-- **Exemple** : `{type: 'setName', payload: {name: 'nouveau nom'}}`
+- **Exemple** : `{type: 'update', payload: {value: 'nouveau nom'}, meta: {id: 'actor@123'}}`
 
 #### Actions de persistance (côté serveur)
 
 - **Nature** : État complet de l'acteur après application des modifications
 - **Contenu** : Toutes les propriétés de l'état de l'acteur
-- **Origine** : Générées automatiquement par le serveur après traitement des actions client
-- **Exemple** : `{type: 'persist', payload: {state: {id: 'actor@123', name: 'nouveau nom', status: 'active', ...}}}`
+- **Origine** : Générées automatiquement par le serveur après traitement des actions client via la quête `persist`
+- **Exemple** : `{type: 'persist', payload: {state: {id: 'actor@123', value: 'nouveau nom', ...}}}`
 
 ### Flux de transformation
 
-1. **Client → Serveur** : Actions partielles représentant les intentions de modification
-2. **Serveur** : Application des actions partielles sur l'état existant des acteurs
-3. **Serveur → Client** : Actions persist contenant l'état complet résultant
+1. **Client → Serveur** : Actions partielles représentant les intentions de modification (`stagedActions`)
+2. **Serveur** : Application des actions partielles sur l'état existant des acteurs via `$4ellen`, puis déclenchement automatique d'une action `persist`
+3. **Serveur → Client** : Actions `persist` contenant l'état complet résultant, retournées directement dans `persisted` ou via un `xcraftStream` pour les grandes quantités
 
 Cette approche garantit que :
 
 - Le serveur reste la source de vérité pour l'état complet
 - Les clients reçoivent toujours un état cohérent et complet
-- Les conflits sont résolus côté serveur lors de l'application des actions
+- Les conflits sont résolus côté serveur lors de l'application des actions dans l'ordre des commits
 - L'ordre des modifications est préservé grâce aux commitIds
 
 ### Avantages du modèle
@@ -182,40 +226,42 @@ Les actions peuvent avoir différents états de commit :
 
 #### Vérification de cohérence
 
-Le système vérifie la cohérence des commits entre client et serveur via `ripleyCheckForCommitId` pour s'assurer que les bases de données sont compatibles avant la synchronisation. Si aucun commitId client n'est reconnu par le serveur, cela indique une incompatibilité nécessitant un bootstrap complet.
+La quête `ripleyCheckForCommitId` vérifie la compatibilité des bases entre client et serveur. Si le serveur est vide, elle retourne `check=true` avec `count=0` (le client peuplera le serveur). Si des commitIds existent côté serveur mais qu'aucun commitId client n'est reconnu, cela indique une incompatibilité nécessitant un bootstrap complet. La quête vérifie également un seuil (`bootstrapLimit`, défaut 20 000) : si trop d'actions doivent être synchronisées, un bootstrap complet est préférable à une synchronisation incrémentale.
 
 ### Traitement par lots
 
 #### Calcul des étapes
 
-La fonction `computeRipleySteps` dans `lib/ripleyHelpers.js` détermine comment grouper les actions pour le traitement par lots, en respectant la contrainte critique que toutes les actions d'un même commitId doivent être dans le même lot. Cette fonction prend en compte :
+La fonction `computeRipleySteps` dans `lib/ripleySync.js` détermine comment grouper les actions pour le traitement par lots. La contrainte critique est que **toutes les actions d'un même commitId doivent rester dans le même lot** afin de préserver l'intégrité transactionnelle. Cette fonction prend en compte :
 
-- **Limite par lot** : Nombre maximum d'actions par étape (défaut : 20)
-- **Intégrité des commits** : Aucun commitId ne peut être divisé entre plusieurs lots
-- **Optimisation** : Maximise le nombre d'actions par lot tout en respectant les contraintes
-- **Compatibilité** : Gère les anciens serveurs qui ne fournissent pas de compteurs de commits
+- **Limite par lot** : Nombre cible d'actions par étape (défaut : 20)
+- **Intégrité des commits** : Un commitId ne peut jamais être divisé entre deux lots, même si cela dépasse la limite
+- **Compteurs de commits** : Le `commitCnt` fourni par le serveur indique combien d'actions appartiennent à chaque commitId, permettant un calcul précis
+- **Compatibilité ascendante** : En l'absence de `commitCnt` (ancien serveur), toutes les actions forment un seul lot
 
-#### Application séquentielle
+#### Application via RipleyWriter
 
-Les actions sont appliquées par lots pour :
+Pour les grandes quantités d'actions, le serveur envoie un flux (`xcraftStream`) traité par `RipleyWriter` côté client. Ce writer de flux Node.js (`Writable`) :
 
-- **Performance** : Éviter de surcharger la base de données avec trop d'opérations simultanées
-- **Cohérence** : Maintenir l'intégrité transactionnelle par lot via les transactions Cryo
-- **Récupération** : Permettre l'arrêt et la reprise de la synchronisation entre les lots
-- **Monitoring** : Fournir des indicateurs de progression précis via les événements de performance
+1. Reçoit les actions en chunks JSON sérialisés
+2. Filtre les actions déjà présentes côté client (envoyées dans `persisted`)
+3. Calcule les étapes via `computeRipleySteps`
+4. Applique les actions par lots via `applyPersisted` (transaction Cryo par lot)
+5. Reporte la progression via les événements `greathall::<perf>`
+6. Conserve les actions du dernier lot incomplet jusqu'à la fermeture du stream (`_destroy`)
 
 ```mermaid
 flowchart LR
-    A[Actions à traiter] --> B[Calcul des étapes]
-    B --> C[Lot 1: commitIds A,B]
-    B --> D[Lot 2: commitId C]
-    B --> E[Lot N: commitIds X,Y,Z]
-    C --> F[Transaction 1]
-    D --> G[Transaction 2]
-    E --> H[Transaction N]
-    F --> I[Commit/Rollback]
-    G --> I
-    H --> I
+    A[Flux xcraftStream] --> B[RipleyWriter._write]
+    B --> C[Filtrage actions déjà connues]
+    C --> D[computeRipleySteps]
+    D --> E[Lot 1: commitIds A,B]
+    D --> F[Lot 2: commitId C]
+    D --> G[Lot N: commitIds X,Y,Z]
+    E --> H[applyPersisted → Transaction Cryo]
+    F --> H
+    G --> H
+    H --> I[sendSyncing progression]
 ```
 
 ### Gestion des erreurs et récupération
@@ -223,59 +269,55 @@ flowchart LR
 #### Mécanismes de récupération
 
 - **Actions zéro** : Les actions avec commitId zéro sont détectées au démarrage via `getZeroActions` et retraitées ou nettoyées selon leur état sur le serveur
-- **Rollback transactionnel** : En cas d'erreur, les transactions Cryo sont annulées automatiquement
-- **Retry automatique** : Les synchronisations échouées sont relancées automatiquement par le système de debounce
-- **Restauration d'état** : Les commitIds zéro sont restaurés à NULL en cas d'échec via `prepareDataForSync` pour permettre une nouvelle tentative
+- **Restauration en cas d'échec côté serveur** : Si `ripleyServer` échoue, les rows marqués zéro sont restaurés à NULL via `prepareDataForSync(rows, zero=false)` pour permettre une nouvelle tentative
+- **Rollback transactionnel** : En cas d'erreur dans `applyPersisted`, les transactions Cryo sont annulées via `cryo.rollback` avec un log explicite
+- **Retry automatique** : Les synchronisations échouées sont relancées automatiquement par le système de debounce dans `lib/sync/index.js`
+- **Vérification d'arrêt en cours de flux** : Pendant le traitement du `RipleyWriter`, la flag `SHUTTING_DOWN_KEY` est vérifiée après chaque lot ; si l'arrêt est demandé, une erreur est levée pour interrompre proprement le flux
 
 #### Gestion de l'arrêt
 
 La quête `tryShutdown` permet un arrêt propre du système :
 
-1. **Signalement** : Marque le système comme en cours d'arrêt via le flag `ripley.shuttingDown`
-2. **Attente conditionnelle** : Attend la fin des synchronisations en cours si demandé en surveillant `ripley.thinking`
-3. **Rapport d'état** : Indique les bases de données encore en cours de traitement
-4. **Timeout** : Limite l'attente pour éviter un blocage indéfini (vérification toutes les secondes)
+1. **Signalement** : Marque le système comme en cours d'arrêt via la clé `ripley.shuttingDown`
+2. **Attente conditionnelle** : Si `wait=true`, interroge le compteur `ripley.thinking` toutes les secondes jusqu'à ce qu'aucune synchronisation ne soit active
+3. **Rapport d'état** : Retourne la liste des bases encore en cours de traitement (ou `null` si aucune synchronisation n'a jamais démarré)
 
 ### Surveillance et performance
 
 #### Indicateurs de synchronisation
 
-Le système fournit des indicateurs de progression via les événements `greathall::<perf>` :
+Le système envoie des événements `greathall::<perf>` pour informer l'interface utilisateur de l'état de la synchronisation. Ces événements contiennent un objet `syncing` indexé par base de données, indiquant si une synchronisation est active et la progression en cours.
 
-- **État de synchronisation** : Actif/inactif par base de données avec indicateur de progression
-- **Progression détaillée** : Position actuelle et nombre total d'actions dans le traitement des lots
-- **Performance réseau** : Temps de traitement et détection des déconnexions/latences via HordesSync
-- **Métriques de débit** : Temps de traitement par lot avec logging détaillé
+La fonction `wrapForSyncing` introduit un délai de grâce d'une seconde : les synchronisations qui se terminent en moins d'une seconde ne génèrent aucun événement de progression, évitant ainsi le bruit pour les synchronisations rapides. Un `defer` est utilisé pour envoyer l'événement de fin avec un délai similaire d'une seconde après la fin de la synchronisation.
 
 #### Optimisations
 
-- **Traitement parallèle** : Plusieurs bases peuvent se synchroniser simultanément (limite de 4 par défaut dans HordesSync)
-- **Lots adaptatifs** : La taille des lots s'adapte au contenu et aux contraintes de commitId
-- **Cache intelligent** : Réutilisation des connexions Cryo et des requêtes préparées
-- **Debounce intelligent** : Évite les synchronisations trop fréquentes (500ms de délai)
-- **Surveillance réseau** : Détection automatique des déconnexions et adaptation du comportement
-- **Seuil de reporting** : Les synchronisations de moins d'1 seconde ne sont pas reportées pour éviter le spam
+- **Debounce** : Le module `lib/sync/index.js` regroupe les déclenchements de synchronisation avec un délai de 500ms pour éviter les synchronisations trop fréquentes
+- **Lots adaptatifs** : La taille des lots s'adapte au contenu et aux contraintes de commitId via `computeRipleySteps`
+- **Verrou par base** : Chaque base de données dispose de son propre verrou mutex pour permettre des synchronisations parallèles entre bases différentes
 
 ### Bootstrap et initialisation
 
 #### Processus de bootstrap
 
-Le système HordesSync dans `lib/sync/hordesSync.js` gère l'initialisation et le bootstrap des bases de données :
+Le module `lib/sync/hordesSync.js` gère l'initialisation et le bootstrap des bases de données via la classe `HordesSync` (singleton) :
 
-1. **Vérification d'existence** : Contrôle si la base de données existe et si elle est vide via `cryo.isEmpty`
-2. **Validation de cohérence** : Vérifie que les commitIds locaux sont connus du serveur via `ripleyCheckBeforeSync`
-3. **Bootstrap automatique** : En cas d'incohérence, récupère toutes les actions persist du serveur via `cryo.getAllPersist`
-4. **Renommage de sauvegarde** : Sauvegarde l'ancienne base avant le bootstrap si nécessaire via `cryo.bootstrapActions`
+1. **Attente de connexion** : Attend que le client soit connecté aux serveurs Horde via `xHorde.waitAutoload`
+2. **Vérification d'existence** : Pour chaque base, contrôle si elle existe et si elle est vide via `cryo.isEmpty`
+3. **Validation de cohérence** : Si la base existe et n'est pas vide, vérifie que les commitIds locaux sont connus du serveur via `ripleyCheckBeforeSync`
+4. **Synchronisation normale si possible** : Si la cohérence est confirmée et qu'un commitId commun existe, appelle directement `ripleyClient`
+5. **Bootstrap automatique** : En cas d'incohérence ou de base vide, récupère toutes les actions persist du serveur via `cryo.getAllPersist` (flux) puis les importe via `cryo.bootstrapActions`
+6. **Renommage préventif** : Si une base existante est incompatible, elle est renommée avant le bootstrap pour éviter la perte de données
+
+La boucle de bootstrap recommence tant que des bases sont inexistantes ou que le bootstrap échoue, assurant une initialisation robuste même en cas de problèmes transitoires.
 
 #### Gestion des connexions
 
-Le système surveille la connectivité réseau et adapte son comportement :
+Le module surveille la connectivité réseau via les événements `greathall::<perf>` et adapte son comportement :
 
-- **Détection de déconnexion** : Monitoring des sockets et de la latence réseau via les événements `greathall::<perf>`
-- **Récupération automatique** : Relance la synchronisation lors du retour de connectivité
-- **Gestion du lag** : Annulation des commandes en cours en cas de latence excessive (>30s) via `Command.abortAll`
-- **Bootstrap conditionnel** : Initialisation différée jusqu'à la disponibilité du réseau
-- **Exclusion de bases** : Respect de la configuration `actionsSync.excludeDB` pour ignorer certaines bases
+- **Détection de déconnexion** : Le flag `socketLost` est activé lors de la perte de socket ; lors du retour de connectivité, `_syncAll` est appelé automatiquement
+- **Gestion du lag** : Si la latence dépasse 30 secondes, toutes les commandes en cours sont annulées via `Command.abortAll` et le flag `socketLag` bloque les nouvelles synchronisations
+- **Exclusion de bases** : La configuration `actionsSync.excludeDB` permet d'ignorer certaines bases dans toutes les opérations de synchronisation
 
 ```mermaid
 sequenceDiagram
@@ -284,16 +326,18 @@ sequenceDiagram
     participant DB as Base locale
     participant SDB as Base serveur
 
-    C->>S: Vérification cohérence commitIds
-    alt Cohérence OK
-        S->>C: Validation
-        C->>C: Synchronisation normale
-    else Incohérence détectée
-        C->>DB: Renommage base existante
-        C->>S: Demande bootstrap complet
-        S->>SDB: Extraction toutes actions
-        S-->>C: Stream actions persist
-        C->>DB: Reconstruction base
+    C->>S: ripleyCheckBeforeSync(db)
+    alt Cohérence OK et commitId connu
+        S->>C: {passed: true, commitId}
+        C->>C: ripleyClient(db) - synchronisation normale
+    else Base vide ou aucun commitId connu
+        C->>S: ripleyCheckBeforeSync(db, noThrow=true)
+        S->>C: {passed: false}
+        C->>DB: Renommage base existante (si nécessaire)
+        C->>S: cryo.getAllPersist(db) → xcraftStream
+        S->>SDB: Extraction toutes actions persist
+        S-->>C: Flux actions persist
+        C->>DB: cryo.bootstrapActions(streamId, routingKey)
         C->>C: Synchronisation normale
     end
 ```
