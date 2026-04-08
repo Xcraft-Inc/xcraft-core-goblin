@@ -48,7 +48,8 @@ describe('xcraft.goblin.elf', function () {
 
       expect(state.value).to.be.equal('Hello');
 
-      await simpleElf.update('Bonjour'); /* state was copied */
+      await simpleElf.update('Bonjour');
+      /* state was copied, then stays the same */
       expect(state.value).to.be.equal('Hello');
     });
   });
