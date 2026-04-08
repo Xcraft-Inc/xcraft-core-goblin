@@ -33,4 +33,23 @@ describe('xcraft.goblin.elf', function () {
       expect(simpleElf.state.value).to.be.equal('Bonjour');
     });
   });
+
+  it('local state read (bis)', async function () {
+    this.timeout(10000);
+    await runner.it(async function () {
+      const xBus = require('xcraft-core-bus');
+      await xBus.loadModule(this.quest.resp, ['simpleElf.js'], __dirname, {});
+
+      const feedId = await this.newQuestFeed();
+      const id = `simpleElf@${this.quest.uuidV4()}`;
+
+      const simpleElf = await new SimpleElf(this).create(id, feedId, 'Hello');
+      const {state} = simpleElf;
+
+      expect(state.value).to.be.equal('Hello');
+
+      await simpleElf.update('Bonjour'); /* state was copied */
+      expect(state.value).to.be.equal('Hello');
+    });
+  });
 });
