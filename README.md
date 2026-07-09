@@ -76,6 +76,10 @@ Client                          Serveur
 
 La classe `RipleyWriter` (un stream Node.js `Writable`) gère la réception progressive des actions du serveur en lots (`computeRipleySteps`) pour éviter les transactions trop volumineuses tout en préservant l'intégrité des `commitId`.
 
+### Écoute réactive de Cryo
+
+Les acteurs Elf disposent également d'une API `this.cryo.listenTo(actorType, callback)` qui permet de s'abonner aux changements (insertion, mise à jour, suppression) d'un type d'acteur directement au niveau de Cryo, sans devoir passer par des événements métier explicites. Le callback reçoit le topic déclenché ainsi que l'identifiant de l'acteur concerné (`null` lors de l'appel initial). Cette souscription est automatiquement nettoyée à la destruction de l'acteur (via `quest.goblin.defer`).
+
 ## Exemples d'utilisation
 
 ### Acteur Elf avec persistance (Archetype)
@@ -172,6 +176,18 @@ const svc = new MyService(this);
 await svc.doSomething();
 ```
 
+### Écoute réactive d'un type d'acteur
+
+```javascript
+class MyWatcherActor extends Elf.Alone {
+  async init() {
+    this.cryo.listenTo('myActor', async (topic, actorId) => {
+      this.log.info(`Changement détecté sur ${actorId} (${topic})`);
+    });
+  }
+}
+```
+
 ### Acteur Goblin legacy
 
 ```javascript
@@ -223,6 +239,8 @@ const queueService = Goblin.buildQueue('my-queue', {
 - **[xcraft-core-stones]** : Système de types pour la validation des états
 - **[xcraft-core-horde]** : Gestion des nœuds distribués pour la synchronisation
 - **[goblin-laboratory]** : Composants UI React pour les widgets
+- **[xcraft-core-pickaxe]** : Constructeur de requêtes typées utilisé par `queryArchetype`
+- **[xcraft-core-book]** : Classe `SQLite` de base pour les lecteurs/chercheurs Cryo
 
 ## Configuration avancée
 
@@ -230,6 +248,7 @@ const queueService = Goblin.buildQueue('my-queue', {
 | ---------------------------- | --------------------------------------------------------------- | --------- | ----------------- |
 | `enableCryo`                 | Active le stockage d'actions via Cryo                           | `boolean` | `false`           |
 | `actionsSync.enable`         | Active la synchronisation des actions pour Cryo                 | `boolean` | `false`           |
+| `actionsSync.isServer`       | Fait agir le nœud comme serveur de synchronisation              | `boolean` | `false`           |
 | `actionsSync.excludeDB`      | Liste des bases de données exclues de la sync                   | `array`   | `[]`              |
 | `actionsSync.bootstrapLimit` | Nombre d'actions au-delà duquel un bootstrap complet est requis | `number`  | `20000`           |
 | `enableGuildEnforcerCache`   | Active le cache SQLite du guild enforcer                        | `boolean` | `false`           |
@@ -283,6 +302,7 @@ L'état des Goblins est géré via Shredder avec une structure Redux à deux bra
 - **`release(goblinName, goblinId)`** — Libère une instance d'acteur et nettoie ses ressources.
 - **`getGoblinsRegistry()`** — Retourne le registre global de tous les acteurs instanciés.
 - **`getSessionsRegistry()`** — Retourne le registre des sessions (stockage local par acteur).
+- **`getParams(goblinName, questName)`** — Retourne la liste des paramètres attendus par une quête (ou `false` si la quête est inconnue) ; utilisée notamment côté client pour construire dynamiquement le payload d'un appel.
 - **`buildApplication(appId, config)`** — Construit une application Xcraft complète.
 - **`buildQueue(queueName, config)`** — Construit un système de file d'attente.
 - **`buildQueueWorker(queueName, config)`** — Construit un worker pour une file d'attente.
@@ -333,7 +353,7 @@ Contexte d'exécution pour les quêtes d'acteurs. Fournit l'API complète pour i
 - **`defer(action)`** — Ajoute une action à exécuter à la fin de la quête.
 - **`fail(title, desc, hint, ex)`** — Signale un échec avec notification desktop.
 - **`logCommandError(ex, msg)`** — Log une erreur de commande pour overwatch.
-- **`sysCall(questName, questArguments)`** — Appelle une quête système sur l'acteur courant.
+- **`sysCall(questName, questArguments)`** — Appelle une quête (au sein du même acteur ou via l'acteur singleton `goblin`) en garantissant la présence d'un `desktopId`, en s'appuyant sur `goblin.sysCall` lorsque l'acteur n'est pas en cours de création.
 - **`sysCreate()`** — Crée l'acteur courant dans le feed système.
 - **`sysKill()`** — Supprime l'acteur courant du feed système.
 - **`getSystemDesktop()`** — Retourne le desktop système correspondant au desktop courant.
@@ -342,6 +362,7 @@ Contexte d'exécution pour les quêtes d'acteurs. Fournit l'API complète pour i
 - **`getStorage(service, session)`** — Retourne l'API d'un service de stockage.
 - **`hasAPI(namespace)`** — Vérifie si un namespace d'API est disponible sur le bus.
 - **`newResponse(routing)`** — Crée une nouvelle réponse bus avec routage spécifique.
+- **`respArgsLocal()`** — Construit les arguments de réponse pour un routage strictement local (utilisé par `sub.local` et les callbacks internes).
 
 ### `lib/scheduler.js`
 
@@ -572,6 +593,7 @@ La propriété statique `indices` sur une classe `Archetype` permet de déclarer
 - **`Elf.getClass(type)`** — Récupère la classe Elf enregistrée pour un type.
 - **`Elf.quests(elfClass)`** — Retourne la liste des noms de quêtes d'une classe.
 - **`Elf.goblinName(derivatedClass)`** — Extrait le goblinName (première lettre en minuscule).
+- **`Elf.Archetype.exist(cryo, actorId)`** — Vérifie si un acteur existe dans la base Cryo associée (même s'il est trashed).
 
 #### Méthodes d'instance (dans les quêtes)
 
@@ -583,6 +605,7 @@ La propriété statique `indices` sur une classe `Archetype` permet de déclarer
 - **`this.insertOrReplace(id, desktopId, state)`** — Insère ou remplace un état.
 - **`this.api(id)`** — Retourne l'API d'un acteur existant avec injection de l'état local.
 - **`this.winDesktopId()`** — Retourne le desktopId d'une fenêtre locale ou distante.
+- **`this.cryo.listenTo(actorType, callback)`** — S'abonne aux changements Cryo (insertion, mise à jour, suppression) d'un type d'acteur ; envoie un événement initial (`id` à `null`) puis un événement par changement détecté.
 
 ### `lib/elf/spirit.js`
 
@@ -605,7 +628,7 @@ Collection de proxies pour différents contextes d'exécution Elf. Gère l'inter
 
 ### `lib/elf/me.js`
 
-Wrapper pour l'API `quest.me` des acteurs Elf. Fournit une interface unifiée qui combine les méthodes du Quest et celles de l'instance Elf avec gestion automatique du contexte. Expose également l'accès au `CryoManager` via `this.cryo`.
+Wrapper pour l'API `quest.me` des acteurs Elf. Fournit une interface unifiée qui combine les méthodes du Quest et celles de l'instance Elf avec gestion automatique du contexte. Expose également l'accès au `CryoManager` via `this.cryo`, y compris la méthode réactive `listenTo`.
 
 #### Méthodes publiques
 
@@ -613,6 +636,7 @@ Wrapper pour l'API `quest.me` des acteurs Elf. Fournit une interface unifiée qu
 - **`killFeed(feedId, xcraftRPC)`** — Supprime un feed.
 - **`kill(ids, parents, feed, xcraftRPC)`** — Supprime des acteurs.
 - **`persist(...args)`** — Persiste l'état avec synchronisation automatique.
+- **`winDesktopId()`** — Retourne le desktopId d'une fenêtre locale ou distante, en cherchant d'abord dans les fenêtres locales (`WM`) puis dans le warehouse (labs distants).
 - **`Me.createFeed(prefix)`** _(statique)_ — Crée un identifiant de feed `system@[prefix@]uuid`.
 
 ### `lib/elf/runner.js`
@@ -752,3 +776,5 @@ _Ce contenu a été généré par IA_
 [xcraft-core-stones]: https://github.com/Xcraft-Inc/xcraft-core-stones
 [xcraft-core-horde]: https://github.com/Xcraft-Inc/xcraft-core-horde
 [goblin-laboratory]: https://github.com/Xcraft-Inc/goblin-laboratory
+[xcraft-core-pickaxe]: https://github.com/Xcraft-Inc/xcraft-core-pickaxe
+[xcraft-core-book]: https://github.com/Xcraft-Inc/xcraft-core-book
