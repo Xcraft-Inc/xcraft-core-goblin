@@ -88,7 +88,7 @@ describe('xcraft.goblin.elf.ripley', function () {
         userId: 'user@test',
       });
 
-      /* Known commitId → check=true */
+      /* Known commitId */
       const result2 = await this.quest.cmd('goblin.ripleyCheckForCommitId', {
         db,
         commitIds: [result1.newCommitId],
@@ -120,7 +120,7 @@ describe('xcraft.goblin.elf.ripley', function () {
         commitIds: ['unknown-newer-id', result1.newCommitId],
       });
 
-      /* Le deuxième est connu → check=true */
+      /* Second one is known */
       expect(result2.check).to.be.equal(true);
     });
   });
