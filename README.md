@@ -536,7 +536,7 @@ Lecteur SQLite pour les bases de données Cryo. Étend `SQLite` de `xcraft-core-
 
 ### `lib/cryo/search.js`
 
-Moteur de recherche pour les bases de données Cryo. Implémente la recherche textuelle FTS5 et vectorielle (sqlite-vec) avec support pour les locales, scopes, et scoring normalisé.
+Moteur de recherche pour les bases de données Cryo. Implémente la recherche textuelle FTS5 et vectorielle (`sqlite-vector`) avec support pour les locales, scopes, et scoring normalisé.
 
 #### Méthodes publiques
 
