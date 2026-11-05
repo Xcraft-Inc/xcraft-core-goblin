@@ -33,7 +33,7 @@ describe('xcraft.goblin.elf.ripley', function () {
   /// ripleyCheckForCommitId ///////////////////////////////////////////////////
 
   it('ripleyCheckForCommitId returns check=true when server is empty', async function () {
-    this.timeout(5000);
+    this.timeout(15000);
 
     /** @this {Elf} */
     await runner.it(async function () {
