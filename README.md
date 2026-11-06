@@ -4,7 +4,17 @@
 
 ## Aperçu
 
-Le module `xcraft-core-goblin` est le cœur du framework Xcraft, fournissant une API pour créer des microservices basés sur Redux appelés "Goblins". Il implémente un système d'acteurs avec gestion d'état immutable, persistance via Cryo, et communication par bus de messages. Le module offre deux types d'acteurs principaux : les acteurs Goblin (legacy) et les acteurs Elf (moderne), avec support pour la sécurité via le Guild Enforcer et la synchronisation distribuée.
+Le module `xcraft-core-goblin` est le cœur du framework Xcraft. Il fournit une API pour composer des microservices appelés « acteurs », basés sur un store Redux et un état immutable. Deux modèles d'acteurs coexistent :
+
+- **Goblin** (legacy) : acteurs sans classe, définis par des quêtes (fonctions ou générateurs) et des reducers Redux.
+- **Elf** (moderne) : acteurs sous forme de classes proxifiées. Les quêtes sont des méthodes de classe, et l'état est décrit par des shapes typées.
+
+Le module gère aussi :
+
+- la persistance et la synchronisation distribuée des états via Ripley et [xcraft-core-cryo] ;
+- la sécurité (Guild Enforcer) ;
+- un cache d'instances avec TTL et ranking ;
+- des constructeurs d'applications, de files d'attente et de workers.
 
 Une documentation présentant les acteurs Elf pas à pas est disponible sur le site Xcraft : https://xcraft.ch/elves/
 
@@ -16,69 +26,131 @@ Une documentation présentant les acteurs Elf pas à pas est disponible sur le s
 - [Interactions avec d'autres modules](#interactions-avec-dautres-modules)
 - [Configuration avancée](#configuration-avancée)
 - [Détails des sources](#détails-des-sources)
+- [Licence](#licence)
 
 ## Structure du module
 
-Le module s'organise autour de plusieurs composants principaux :
+Le module s'organise autour des composants suivants :
 
-- **Goblin** : Classe principale pour les acteurs legacy avec système Redux
-- **Elf** : Nouvelle génération d'acteurs avec API moderne et proxies
-- **Quest** : Contexte d'exécution pour les méthodes d'acteurs
-- **Scheduler** : Gestionnaire de files d'attente pour l'exécution des quêtes
-- **GuildEnforcer** : Système de sécurité et contrôle d'accès
-- **Ripley** : Système de persistance et synchronisation d'état
-- **Cache** : Gestion du cache avec TTL et ranking
-- **CryoManager** : Gestionnaire centralisé pour les opérations de lecture et recherche dans Cryo
+- **Goblin** (`lib/index.js`) : classe principale du système d'acteurs, registre des quêtes, des instances et des configurations.
+- **Elf** (`lib/elf/`) : acteurs modernes avec proxies (`traps`), états typés (`Spirit`, `List`), wrapper `Me` et runner de tests.
+- **Quest** (`lib/quest.js`) : contexte d'exécution fourni à chaque quête.
+- **Scheduler** (`lib/scheduler.js`, `lib/scheduler-queue.js`) : files d'attente d'exécution des quêtes (immediate, serie, parallel).
+- **GuildEnforcer** (`lib/guildEnforcer.js`, `lib/capsAndSkills.js`, `lib/shield/db.js`) : contrôle d'accès par capacités, rôles et compétences.
+- **Ripley** (`lib/ripley.js`, `lib/ripley/cryo.js`, `lib/ripleySync.js`) : persistance des actions Redux et synchronisation client/serveur.
+- **Sync** (`lib/sync/`) : orchestration de la synchronisation incrémentale et du bootstrap entre nœuds.
+- **Cryo** (`lib/cryo/`) : lecture, recherche (FTS5, vectorielle) et requêtes typées sur les bases SQLite de Cryo.
+- **Cache** (`lib/cache/`) : acteur `goblin-cache` pour le TTL et l'éviction des instances.
+- **Builders** (`lib/appBuilder.js`, `lib/queueBuilder.js`, `lib/workerBuilder.js`) : applications, files d'attente et workers.
+- **Services racine** : `goblin.js` (service principal), `goblin-cache.js`, `goblin-orc.js` et `goblin-registry.js` exposent leurs commandes sur le bus via `xcraftCommands`.
 
 ## Fonctionnement global
 
 ### Architecture des acteurs
 
-Le framework propose deux modèles d'acteurs :
+1. **Acteurs Goblin (legacy)** : on enregistre des quêtes avec `Goblin.registerQuest`, puis on déclare l'état initial et les reducers avec `Goblin.configure`. Une quête appelle `quest.do()` pour déclencher le reducer du même nom (pattern Redux).
+2. **Acteurs Elf** : une classe héritant de `Elf` (instanciable) ou `Elf.Alone` (singleton) est associée à une classe de logique (`Elf.Archetype` si l'état est persisté, sinon `Elf.Spirit`). `Elf.birth` enregistre la classe, et `Elf.configure` convertit ses méthodes en quêtes et les méthodes de la logique en reducers.
 
-1. **Acteurs Goblin (legacy)** : Utilisent des générateurs et le pattern Redux classique
-2. **Acteurs Elf** : API moderne avec classes, proxies et gestion automatique de l'état
+Chaque instance possède un store Redux à deux branches :
+
+- `logic` : état métier (Shredder immutable) ;
+- `ellen` : état interne de persistance Ripley.
 
 ### Cycle de vie des acteurs
 
-- **Singleton** : `boot`/`init` → quêtes → `dispose`
-- **Instanciable** : `create` → quêtes → `delete` → `dispose`
+- **Singleton** : `boot` et/ou `init` (appelées une seule fois), puis quêtes, puis `dispose`.
+- **Instanciable** : `create` (constructeur), puis quêtes, puis `delete` (destructeur, optionnel), puis `dispose`.
 
-### Gestion d'état
+Détails de la création :
 
-L'état des acteurs est géré via Shredder (wrapper Immutable.js) avec mutations atomiques via reducers, persistance automatique via Ripley/Cryo, et synchronisation temps réel entre clients/serveurs.
+1. La commande `<acteur>.create` est interceptée par `Goblin.#createQuest`. Un identifiant au format `type@uid` est exigé.
+2. L'instance est enregistrée dans le registre, puis rattachée à ses parents et à son feed dans le warehouse (`warehouse.attach-to-parents`).
+3. La quête `create` est planifiée en mode `immediate` : la file reste en pause jusqu'à la fin de la création. Un `create` concurrent sur le même identifiant (re-create) attend la fin du premier et n'exécute rien de plus.
+4. À la fin de la quête, l'état est publié dans le warehouse (`upsert`) et l'événement `finished` est envoyé à tous les appelants en attente.
+5. Si la création échoue, la branche warehouse est supprimée et l'instance est libérée.
+
+La destruction est déclenchée par `goblin.delete` lorsque le warehouse publie `warehouse.released` (plus aucun parent). Elle compare la génération de l'instance avec celle du message, attend les quêtes en cours, puis libère l'instance.
+
+La méthode `dispose` n'est pas une quête. Elle ferme les handles de bas niveau (timers, sockets…) lors de la fermeture de l'application. Elle doit rester synchrone et ne pas utiliser le bus.
 
 ### Scheduler et modes d'exécution
 
-Le `Scheduler` gère trois modes d'exécution des quêtes, déterminés automatiquement selon un tableau de Karnaugh basé sur l'état de création de l'acteur :
+Le mode d'exécution de chaque quête est déterminé par l'équation `S = BD + AD + AB + AC`, établie par un tableau de Karnaugh :
 
-- **immediate** : Pour les quêtes `create` et celles invoquées depuis un `create` ; bloque la file jusqu'à la fin de la création
-- **serie** : Exécution séquentielle avec verrou mutex
-- **parallel** : Exécution concurrente sans blocage
+- A : la quête est `create`.
+- B : l'acteur est en cours de création.
+- C : l'appelant est lui-même dans un `create`.
+- D : l'acteur s'appelle lui-même.
 
-### Sécurité
+Les modes sont :
 
-Le Guild Enforcer contrôle l'accès aux quêtes via un système de capacités (capabilities), de rôles et compétences (skills), d'authentification JWT, et de politiques de sécurité configurables.
+- **immediate** : `create` et quêtes appelées depuis un `create`. Elles passent avant tout le reste et débloquent la file.
+- **serie** : exécution séquentielle protégée par un mutex.
+- **parallel** : exécution concurrente (mode par défaut).
+
+La quête `delete` suit un chemin particulier : elle attend toutes les promesses en cours avant de s'exécuter.
+
+### Gestion d'état
+
+L'état est géré par [xcraft-core-shredder] (wrapper Immutable.js). Pour les Elves, les classes `Spirit` et les traps traduisent les manipulations JavaScript naturelles (`state.foo = 1`, `state.list.push(x)`, `delete state.obj.key`, `for..of`) en opérations immutables.
+
+Les shapes sont définies avec [xcraft-core-stones] :
+
+- `Elf.Sculpt(Shape)` produit la classe d'état typée.
+- L'option `GOBLIN_CHECKTYPE` active la validation des états rechargés depuis Cryo.
+
+### Sécurité (Guild Enforcer)
+
+Le Guild Enforcer protège chaque quête enregistrée par un « shield » dont les compétences (skills) sont définies via `Goblin.skills`. À chaque appel, il vérifie deux choses :
+
+- l'acteur appelant est capable (capabilities) ;
+- l'utilisateur identifié dans `msg.context._goblinUser` est capable.
+
+Un utilisateur sans identité devient invité (`guest`). Un utilisateur authentifié par JWT reçoit un rang selon les claims définis dans les politiques (`enroleByClaims`, avec `aud` en repli).
+
+Si aucun fichier de politique n'existe, le niveau par défaut vient de `busConfig.defaultPolicyLevel` :
+
+- `0` : tout est autorisé pour `system` et `guest` ;
+- `1` : un token JWT est requis pour les non-system.
 
 ### Synchronisation distribuée (Ripley)
 
-Le système Ripley permet la synchronisation bidirectionnelle des états entre serveurs et clients. Le flux général est le suivant :
+Ripley permet la synchronisation bidirectionnelle des actions `persist` entre un client et un serveur. Le flux général est le suivant :
 
 ```
-Client                          Serveur
-  │                                │
-  ├─ _ripleyPrepareSync(db) ──────►│
-  ├─ ripleyServer(actions, ...) ──►│
-  │◄──────────── persisted + stream┤
-  ├─ _ripleyApplyPersisted ────────┤
-  └─ updateActionsAfterSync ───────┘
+Client                                  Serveur
+  │                                        │
+  ├─ ripleyCheckBeforeSync ───────────────►│ (ripleyCheckForCommitId)
+  ├─ _ripleyPrepareSync (zero commitId)    │
+  ├─ ripleyServer(actions, commitIds) ────►│
+  │                                        ├─ crée les acteurs, rejoue $4ellen
+  │                                        ├─ calcule la plage de persists manquants
+  │◄── persisted + newCommitId + stream ───┤
+  ├─ RipleyWriter (lots via computeRipleySteps)
+  ├─ _ripleyApplyPersisted (insertOrCreate + persist)
+  └─ updateActionsAfterSync (zero → commitId serveur)
 ```
 
-La classe `RipleyWriter` (un stream Node.js `Writable`) gère la réception progressive des actions du serveur en lots (`computeRipleySteps`) pour éviter les transactions trop volumineuses tout en préservant l'intégrité des `commitId`.
+Points clés :
+
+- Les actions non persistées sont envoyées au serveur taguées avec un `commitId` « zéro » (`00000000-0000-0000-0000-000000000000`). Elles ne sont remplacées par le vrai `commitId` qu'une fois la synchronisation réussie, ce qui évite les doublons après une interruption.
+- `computeRipleySteps` découpe les actions en lots d'environ 20 sans jamais séparer deux actions de même `commitId`. Un `commitId` plus gros que la limite reste donc dans un seul lot.
+- Si les bases sont trop éloignées (plus de `actionsSync.bootstrapLimit` persists), ou si le `commitId` local est inconnu du serveur, un bootstrap complet est réalisé via `ripleyGetAllPersist` et `cryo.bootstrapActions`.
+- Côté serveur (`actionsSync.isServer`), seules les quêtes `ripleyServer`, `ripleyPersistFromZero`, `ripleyGetAllPersist` et `ripleyCheckForCommitId` sont enregistrées. Côté client, seule `ripleyClient` l'est.
+- Chaque base ne peut être synchronisée que si elle fait partie de la liste `dbSyncList` (calculée via `getAllRipleyDB`).
+
+### Insertion directe dans Cryo
+
+Les quêtes spéciales `insertOrCreate` et `insertOrReplace` sont interceptées par `Goblin.#insertQuest` :
+
+- Elles utilisent un mutex par identifiant et n'exécutent pas de vraie quête.
+- `insertOrCreate` insère l'état dans Cryo seulement si l'acteur n'existe pas déjà (sinon l'appelant doit faire un `create`).
+- `insertOrReplace` remplace l'état, y compris d'un acteur déjà instancié (action `persist`, puis upsert dans le warehouse).
+- Côté serveur, un `commitId` est généré et la synchronisation est diffusée (`syncBroadcast`). Côté client, la synchronisation est planifiée.
 
 ### Écoute réactive de Cryo
 
-Les acteurs Elf disposent également d'une API `this.cryo.listenTo(actorType, callback)` qui permet de s'abonner aux changements (insertion, mise à jour, suppression) d'un type d'acteur directement au niveau de Cryo, sans devoir passer par des événements métier explicites. Le callback reçoit le topic déclenché ainsi que l'identifiant de l'acteur concerné (`null` lors de l'appel initial). Cette souscription est automatiquement nettoyée à la destruction de l'acteur (via `quest.goblin.defer`).
+Les Elves disposent de `this.cryo.listenTo(actorType, callback)`. Cette API enregistre des triggers sur les dernières actions persistées d'un type d'acteur. Le callback reçoit le topic (`-inserted`, `-updated` ou `-deleted`) et l'identifiant de l'acteur concerné, ou `null` pour l'événement initial. La souscription est nettoyée à la destruction de l'acteur.
 
 ## Exemples d'utilisation
 
@@ -91,6 +163,7 @@ const {id} = require('xcraft-core-goblin/lib/types.js');
 
 class MyActorShape {
   id = id('myActor');
+  label = string;
   data = option(number);
 }
 
@@ -98,11 +171,13 @@ class MyActorState extends Elf.Sculpt(MyActorShape) {}
 
 class MyActorLogic extends Elf.Archetype {
   static db = 'myapp';
+  static indices = ['id'];
   state = new MyActorState();
 
-  create(actorId, data) {
+  create(id, label, data) {
     const {state} = this;
-    state.id = actorId;
+    state.id = id;
+    state.label = label;
     state.data = data;
   }
 
@@ -116,8 +191,8 @@ class MyActor extends Elf {
   logic = Elf.getLogic(MyActorLogic);
   state = new MyActorState();
 
-  async create(id, desktopId, initialData) {
-    this.logic.create(id, initialData);
+  async create(id, desktopId, label, initialData) {
+    this.logic.create(id, label, initialData);
     await this.persist();
     return this;
   }
@@ -136,13 +211,85 @@ exports.xcraftCommands = Elf.birth(MyActor, MyActorLogic);
 ### Utilisation d'un acteur Elf
 
 ```javascript
-// Création avec feed temporaire auto-nettoyé
+// Feed temporaire, nettoyé automatiquement à la fin de la quête
 const feedId = await this.newQuestFeed();
-const actor = await new MyActor(this).create('myActor@123', feedId, 42);
+const actor = await new MyActor(this).create(
+  Elf.newId('myActor'),
+  feedId,
+  'Mon acteur',
+  42
+);
 await actor.updateData(84);
 
-// Lecture de l'état local
-const value = actor.state.data; // 84
+// Lecture de l'état local (copie au moment de l'appel)
+console.log(actor.state.data); // 84
+```
+
+### Acteur Elf singleton (Alone)
+
+```javascript
+class MyService extends Elf.Alone {
+  async init(desktopId) {
+    // appelée une seule fois
+  }
+
+  async doSomething() {
+    this.log.info('Hello');
+  }
+}
+
+exports.xcraftCommands = Elf.birth(MyService);
+
+// Utilisation
+const svc = new MyService(this);
+await svc.doSomething();
+```
+
+### Événements entre acteurs Elf
+
+```javascript
+class Producer extends Elf {
+  async notify() {
+    // Événement `<something-done>` émis pour cet acteur
+    this.emit('something-done', {when: Date.now()});
+  }
+}
+
+class Consumer extends Elf.Alone {
+  async init() {
+    // Écoute uniquement les événements de l'acteur `producer@main`
+    this.on(
+      'something-done',
+      async (data) => {
+        this.log.info(`Reçu ${JSON.stringify(data)}`);
+      },
+      'producer@main'
+    );
+  }
+}
+```
+
+### Écoute réactive d'un type d'acteur
+
+```javascript
+class MyWatcher extends Elf.Alone {
+  async init() {
+    await this.cryo.listenTo('myActor', async (topic, actorId) => {
+      this.log.info(`Changement détecté sur ${actorId} (${topic})`);
+    });
+  }
+}
+```
+
+### Requête typée sur Cryo
+
+```javascript
+const reader = await this.cryo.reader('myapp');
+const rows = reader
+  .queryArchetype('myActor', MyActorShape)
+  .select(['id', 'label'])
+  .where((actor) => actor.get('data').gt(10))
+  .all();
 ```
 
 ### Test unitaire d'une logique Elf
@@ -151,41 +298,39 @@ const value = actor.state.data; // 84
 const {Elf} = require('xcraft-core-goblin');
 
 const logic = Elf.trial(MyActorLogic);
-logic.create('myActor@test', 42);
+logic.create('myActor@test', 'test', 42);
 expect(logic.state.data).to.be.equal(42);
 
 logic.updateData(99);
 expect(logic.state.data).to.be.equal(99);
 ```
 
-### Acteur Elf singleton (Alone)
+### Test d'intégration avec le Runner
 
 ```javascript
-class MyService extends Elf.Alone {
-  async init(desktopId) {
-    // Quête d'initialisation (appelée une seule fois)
-  }
+const {Elf} = require('xcraft-core-goblin/lib/test.js');
 
-  async doSomething() {
-    // Logique métier
-  }
-}
+describe('mon acteur', function () {
+  let runner;
+  this.beforeAll(() => {
+    runner = new Elf.Runner();
+    runner.init();
+  });
+  this.afterAll(() => runner.dispose());
 
-// Utilisation
-const svc = new MyService(this);
-await svc.doSomething();
-```
-
-### Écoute réactive d'un type d'acteur
-
-```javascript
-class MyWatcherActor extends Elf.Alone {
-  async init() {
-    this.cryo.listenTo('myActor', async (topic, actorId) => {
-      this.log.info(`Changement détecté sur ${actorId} (${topic})`);
+  it('crée un acteur', async function () {
+    await runner.it(async function () {
+      const feedId = await this.newQuestFeed();
+      const actor = await new MyActor(this).create(
+        Elf.newId('myActor'),
+        feedId,
+        'test',
+        1
+      );
+      expect(actor.state.data).to.be.equal(1);
     });
-  }
-}
+  });
+});
 ```
 
 ### Acteur Goblin legacy
@@ -208,558 +353,409 @@ Goblin.registerQuest('counter', 'increment', function* (quest) {
   quest.do();
 });
 
+Goblin.registerQuest('counter', 'delete', function (quest) {});
+
 exports.xcraftCommands = () =>
   Goblin.configure('counter', logicState, logicHandlers);
+```
+
+Création et appel depuis une autre quête (système quest, car il s'agit d'un acteur Goblin) :
+
+```javascript
+const counterId = `counter@${quest.uuidV4()}`;
+const counter = yield quest.create('counter', {
+  id: counterId,
+  desktopId: quest.getDesktop(),
+});
+yield counter.increment();
 ```
 
 ### File d'attente avec workers
 
 ```javascript
-// Définir un worker
-const workerService = Goblin.buildQueueWorker('my-queue', {
+// Worker : un acteur instanciable créé/détruit à chaque job
+Goblin.buildQueueWorker('my-queue', {
   workQuest: async function (quest, jobData) {
     // Traitement du job
     return {result: 'done'};
   },
 });
 
-// Définir la file
-const queueService = Goblin.buildQueue('my-queue', {
+// File : un singleton qui écoute un événement et distribue les jobs
+Goblin.buildQueue('my-queue', {
   sub: 'some-service.<job-available>',
   queueSize: 50,
 });
 ```
 
+### Construction d'une application
+
+```javascript
+const Goblin = require('xcraft-core-goblin');
+
+module.exports = Goblin.buildApplication('my-app', {
+  icon: '🚀',
+  useWorkshop: true,
+  quests: {
+    boot: function* (quest) {
+      // initialisation personnalisée après workshop.init
+    },
+  },
+});
+```
+
 ## Interactions avec d'autres modules
 
-- **[xcraft-core-bus]** : Communication inter-acteurs et routage des messages
-- **[xcraft-core-cryo]** : Persistance et synchronisation des états
-- **[goblin-warehouse]** : Gestion des relations parent-enfant et feeds
-- **[xcraft-core-shredder]** : Structures de données immutables
-- **[xcraft-core-stones]** : Système de types pour la validation des états
-- **[xcraft-core-horde]** : Gestion des nœuds distribués pour la synchronisation
-- **[goblin-laboratory]** : Composants UI React pour les widgets
-- **[xcraft-core-pickaxe]** : Constructeur de requêtes typées utilisé par `queryArchetype`
-- **[xcraft-core-book]** : Classe `SQLite` de base pour les lecteurs/chercheurs Cryo
+- **[xcraft-core-bus]** : routage des commandes et des événements, chargement des modules (`xcraftCommands`).
+- **[xcraft-core-busclient]** : création des réponses (`resp`) utilisées par les quêtes.
+- **[xcraft-core-cryo]** : persistance des actions (`cryo.freeze`, `cryo.thaw`) et synchronisation.
+- **[xcraft-core-book]** : classe `SQLite` de base pour les lecteurs, chercheurs et la base des utilisateurs.
+- **[xcraft-core-pickaxe]** : constructeur de requêtes typées utilisé par `queryArchetype`.
+- **[goblin-warehouse]** : relations parent/enfant, feeds et publication des états (`upsert`, `attach-to-parents`).
+- **[xcraft-core-shredder]** : structures de données immutables.
+- **[xcraft-core-stones]** : système de types pour les shapes et la validation.
+- **[xcraft-core-horde]** : nœuds distribués, détection de la connectivité pour la synchronisation.
+- **[xcraft-core-host]** : informations sur l'application (`appId`, `variantId`, tribes, routing key) et gestionnaire de fenêtres.
+- **[xcraft-core-etc]** : chargement de la configuration (`xcraft-core-goblin`, `xcraft-core-bus`, `xcraft-core-horde`).
+- **[xcraft-core-utils]** : réflexion sur les fonctions, mutex, `JobQueue`, `RankedCache`.
+- **[xcraft-core-log]** : journalisation.
+- **[goblin-workshop]** : utilisé par `quest.createEntity` et par `appBuilder` (quête `workshop.init`).
+- **[goblin-laboratory]** : les desktops et laboratoires (feeds) servent de contexte aux fenêtres, via `winDesktopId`.
 
 ## Configuration avancée
 
-| Option                       | Description                                                     | Type      | Valeur par défaut |
-| ---------------------------- | --------------------------------------------------------------- | --------- | ----------------- |
-| `enableCryo`                 | Active le stockage d'actions via Cryo                           | `boolean` | `false`           |
-| `actionsSync.enable`         | Active la synchronisation des actions pour Cryo                 | `boolean` | `false`           |
-| `actionsSync.isServer`       | Fait agir le nœud comme serveur de synchronisation              | `boolean` | `false`           |
-| `actionsSync.excludeDB`      | Liste des bases de données exclues de la sync                   | `array`   | `[]`              |
-| `actionsSync.bootstrapLimit` | Nombre d'actions au-delà duquel un bootstrap complet est requis | `number`  | `20000`           |
-| `enableGuildEnforcerCache`   | Active le cache SQLite du guild enforcer                        | `boolean` | `false`           |
+Les options suivantes sont définies dans `config.js` et exploitées via [xcraft-core-etc].
+
+| Option                       | Description                                                  | Type      | Valeur par défaut |
+| ---------------------------- | ------------------------------------------------------------ | --------- | ----------------- |
+| `enableCryo`                 | Active le stockage d'actions via Cryo                        | `boolean` | `false`           |
+| `actionsSync.enable`         | Active la synchronisation des actions pour Cryo              | `boolean` | `false`           |
+| `actionsSync.isServer`       | Fait agir le nœud comme serveur de synchronisation           | `boolean` | `false`           |
+| `actionsSync.excludeDB`      | Bases de données exclues de la synchronisation               | `array`   | `[]`              |
+| `actionsSync.bootstrapLimit` | Distance au-delà de laquelle un bootstrap complet est requis | `number`  | `20000`           |
+| `enableGuildEnforcerCache`   | Active le cache SQLite des utilisateurs du Guild Enforcer    | `boolean` | `false`           |
+
+L'option de ligne de commande `--disable-actions-sync` désactive la synchronisation même si `actionsSync.enable` vaut `true`. La configuration est alors sauvegardée à jour.
 
 ### Variables d'environnement
 
-| Variable                 | Description                                            | Exemple       | Valeur par défaut |
-| ------------------------ | ------------------------------------------------------ | ------------- | ----------------- |
-| `GOBLIN_ENFORCER_LOOSE`  | Désactive le verrouillage (freeze) du guild enforcer   | `true`        | `undefined`       |
-| `NODE_ENV`               | Mode de développement pour validations supplémentaires | `development` | `undefined`       |
-| `GOBLIN_RUNNER_SHUTDOWN` | Contrôle l'arrêt automatique du runner de tests        | `no`          | `undefined`       |
-| `GOBLIN_CHECKTYPE`       | Active la validation de types des états Archetype      | `1`           | `undefined`       |
+| Variable                 | Description                                                | Exemple          | Valeur par défaut |
+| ------------------------ | ---------------------------------------------------------- | ---------------- | ----------------- |
+| `GOBLIN_ENFORCER_LOOSE`  | Ne gèle pas (freeze) l'objet du Guild Enforcer             | `1`              | `undefined`       |
+| `NODE_ENV`               | Avec `development`, vérifie les noms réservés des Elves    | `development`    | `undefined`       |
+| `GOBLIN_RUNNER_SHUTDOWN` | Avec `no`, le runner de tests n'arrête pas le serveur      | `no`             | `undefined`       |
+| `GOBLIN_CHECKTYPE`       | Valide l'état Archetype rechargé depuis Cryo avec le shape | `1`              | `undefined`       |
+| `XCRAFT_ROOT`            | Racine de l'environnement ; définie par `lib/test.js`      | `/tmp/app-test`  | `undefined`       |
+| `GOBLINS_APP`            | Application ciblée ; définie par `lib/test.js`             | `my-app@default` | `undefined`       |
 
 ## Détails des sources
 
-### `goblin-cache.js`
+### `goblin.js`, `goblin-cache.js`, `goblin-orc.js`
 
-Point d'entrée pour les commandes du service de cache. Expose les commandes définies dans `lib/cache/cache.js`.
-
-### `goblin-orc.js`
-
-Point d'entrée pour les commandes du service goblin-orc. Expose les commandes définies dans `lib/goblin-orc.js`.
+Points d'entrée exposant les commandes (`xcraftCommands`) respectivement de `lib/service.js`, `lib/cache/cache.js` et `lib/goblin-orc.js`.
 
 ### `goblin-registry.js`
 
-Service de registre pour accéder à l'état des goblins. Fournit la commande `getState` (avec routing key dynamique selon le nœud) pour récupérer l'état d'un goblin par son ID, avec gestion des erreurs et support multi-tribe via `xcraft-core-host`.
-
-### `goblin.js`
-
-Point d'entrée principal pour les commandes du service goblin. Expose les commandes définies dans `lib/service.js`.
+Expose la commande `<routingKey>.getState` (parallèle, paramètre requis `goblinId`). Elle retourne l'état d'un goblin local, ou `null` s'il n'existe pas ou n'est pas encore créé. Elle est utilisée par `quest.getState` pour lire l'état d'acteurs situés sur une autre tribe. En cas d'erreur, un événement `.error` est envoyé, puis `.finished` dans tous les cas.
 
 ### `lib/index.js`
 
-Classe principale `Goblin` qui implémente le système d'acteurs legacy. Gère la création d'instances, l'exécution des quêtes via Redux, la persistance Ripley, et l'intégration avec le scheduler. Fournit l'API de base pour `quest.create`, `quest.cmd`, et la gestion du cycle de vie des acteurs.
+Classe principale `Goblin` : registre des quêtes, des instances et des sessions, store Redux de chaque acteur, quêtes spéciales `create` et `insertOrCreate`/`insertOrReplace`, intégration Ripley et middleware de sécurité.
+
+Fonctions exportées en plus de la classe :
+
+- `Goblin.skills` : proxy qui retourne un `Symbol` pour chaque compétence demandée (par exemple `Goblin.skills.OPEN_DESKTOP`).
+- `Goblin.ShieldedError`, `Goblin.SmartId`, `Goblin.Shredder`, `Goblin.Elf`.
 
 #### État et modèle de données
 
-L'état des Goblins est géré via Shredder avec une structure Redux à deux branches :
+Chaque instance contient un store Redux à deux branches :
 
-- `logic` : État métier de l'acteur (Shredder immutable)
-- `ellen` : État de persistance Ripley
+- `logic` : état métier immutable (Shredder), publié dans le warehouse (la clé `private` n'est pas publiée) ;
+- `ellen` : état interne du backend de persistance.
+
+Les données volatiles non Redux sont stockées par instance via `setX`, `getX` et `delX`, et la propriété `feed` y est conservée sous `desktopId`.
 
 #### Méthodes publiques
 
-- **`configure(goblinName, logicState, logicHandlers, goblinConfig)`** — Configure un nouveau type d'acteur Goblin avec son état initial et ses reducers Redux.
-- **`registerQuest(goblinName, questName, quest, options)`** — Enregistre une quête (méthode) pour un type d'acteur donné.
-- **`registerQuests(goblinName, quests, options, safe)`** — Enregistrement par lot de plusieurs quêtes.
-- **`registerSafeQuest(goblinName, questName, questFunc, options)`** — Enregistrement avec création/suppression automatique d'instance système.
-- **`create(goblinName, uniqueIdentifier, generation)`** — Crée une nouvelle instance d'acteur.
-- **`createSingle(goblinName)`** — Crée un acteur singleton (non disponible sur les tribes secondaires).
-- **`release(goblinName, goblinId)`** — Libère une instance d'acteur et nettoie ses ressources.
-- **`getGoblinsRegistry()`** — Retourne le registre global de tous les acteurs instanciés.
-- **`getSessionsRegistry()`** — Retourne le registre des sessions (stockage local par acteur).
-- **`getParams(goblinName, questName)`** — Retourne la liste des paramètres attendus par une quête (ou `false` si la quête est inconnue) ; utilisée notamment côté client pour construire dynamiquement le payload d'un appel.
-- **`buildApplication(appId, config)`** — Construit une application Xcraft complète.
-- **`buildQueue(queueName, config)`** — Construit un système de file d'attente.
-- **`buildQueueWorker(queueName, config)`** — Construit un worker pour une file d'attente.
-- **`identifyUser(msg)`** — Identifie un utilisateur à partir d'un message du bus.
-- **`setUser(context, userId)`** — Définit l'utilisateur courant dans un contexte de quête.
-- **`enroleUser(instance, tokenData)`** — Enregistre un utilisateur à partir d'un token JWT.
-- **`deroleUser(instance, tokenData)`** — Supprime un utilisateur du système.
-- **`registerUser(userInfos)`** — Enregistre manuellement un utilisateur.
-- **`buildGuestFootprint(clientServiceId, windowId)`** — Construit une empreinte pour un utilisateur invité local.
-- **`buildRemoteGuestFootprint(ctx)`** — Construit une empreinte pour un utilisateur invité distant (via IP, socketId et zeppelinSessionId).
-- **`waitForHordesSync(quest)`** — Attend la synchronisation des hordes avant de continuer.
-- **`getActorRipleyRules(actorId, actionType)`** — Retourne les règles Ripley d'un acteur pour un type d'action.
-- **`getActorRipleyDB(actorId)`** — Retourne la base de données Cryo associée à un acteur.
-- **`getAllRipleyDB()`** — Retourne toutes les bases de données Cryo enregistrées (hors exclusions de `actionsSync.excludeDB`).
-- **`getAllRipleyActors(db)`** — Retourne tous les types d'acteurs persistés dans une base, optionnellement filtré par `db`.
-- **`getActorClass(actorId)`** — Retourne la classe Elf associée à un type d'acteur.
-- **`dispose()`** — Nettoie toutes les ressources du système.
-- **`createAction(type, payload, meta, error)`** — Crée une action Redux standard (Flux Standard Action).
+- **`configure(goblinName, logicState, logicHandlers, goblinConfig)`** — Configure un type d'acteur et retourne `{handlers, rc}` pour le bus. Le rôle par défaut est `system`.
+- **`registerQuest(goblinName, questName, quest, options)`** — Enregistre une quête. `options.skills` déclare les compétences requises.
+- **`registerQuests(goblinName, quests, options, safe)`** — Enregistrement par lot.
+- **`registerSafeQuest(goblinName, questName, questFunc, options)`** — Enveloppe la quête avec `sysCreate`/`sysKill`.
+- **`create(goblinName, uniqueIdentifier, generation)`** — Crée une instance.
+- **`createSingle(goblinName)`** — Crée un singleton (ignoré sur les tribes secondaires, sauf pour `goblin`).
+- **`release(goblinName, goblinId)`** — Libère une instance.
+- **`getGoblinsRegistry()`** / **`getSessionsRegistry()`** — Registres globaux.
+- **`getParams(goblinName, questName)`** — Paramètres d'une quête, ou `false` si elle est inconnue.
+- **`getQuests(goblinName)`** / **`getRC(goblinName)`** — Handlers et définitions de commandes.
+- **`buildApplication(appId, config)`**, **`buildQueue(queueName, config)`**, **`buildQueueWorker(queueName, config)`** — Constructeurs.
+- **`getActorRipleyRules(actorId, actionType)`**, **`getActorRipleyDB(actorId)`**, **`getAllRipleyDB()`**, **`getAllRipleyActors(db)`**, **`getActorClass(actorId)`** — Introspection Ripley/Elf.
+- **`getSystemDesktop(desktopId)`**, **`getGoblinName(goblinId)`**, **`extractGoblinName(goblinId)`**, **`nextGen()`** — Utilitaires d'identifiants.
+- **`identifyUser(msg)`**, **`setUser(context, userId)`**, **`enroleUser(instance, tokenData)`**, **`deroleUser(instance, tokenData)`**, **`registerUser(userInfos)`** — Gestion des utilisateurs.
+- **`buildGuestFootprint(clientServiceId, windowId)`** / **`buildRemoteGuestFootprint(ctx)`** — Empreintes d'invités locaux et distants.
+- **`waitForHordesSync(quest)`** — Attend l'initialisation de la synchronisation. Retourne `false` si le bootstrap échoue.
+- **`createAction(type, payload, meta, error)`** — Crée une action Flux Standard.
+- **`dispose()`** — Libère le Guild Enforcer et tous les acteurs.
 
 ### `lib/quest.js`
 
-Contexte d'exécution pour les quêtes d'acteurs. Fournit l'API complète pour interagir avec d'autres acteurs, gérer les événements, accéder aux services système, et manipuler l'état. Centralise toutes les opérations disponibles dans une quête.
+Contexte d'exécution des quêtes. Il expose les accesseurs `goblin`, `elf`, `user`, `me`, `sys`, `warehouse`, `log`, `uuidV4`, `calledFrom`, ainsi que `msg` et `resp`.
 
 #### Méthodes publiques
 
-- **`create(namespace, args)`** — Crée un nouvel acteur et retourne son API.
-- **`createFor(goblinName, goblinId, namespace, args)`** — Crée un acteur avec un propriétaire spécifique.
-- **`createNew(namespace, args)`** — Crée un acteur avec un ID UUID généré automatiquement.
-- **`createView(namespace, args, view)`** — Crée un acteur avec une vue filtrée (propriétés `with`/`without`).
-- **`createPlugin(namespace, args)`** — Crée un acteur plugin lié à l'acteur courant (`namespace@goblinId`).
-- **`createEntity(id, properties, view)`** — Crée une entité via goblin-workshop.
-- **`createCache(goblinId)`** — Crée ou récupère un service de cache.
-- **`cmd(cmd, args)`** — Envoie une commande sur le bus Xcraft.
-- **`evt(topic, payload)`** — Émet un événement préfixé par l'ID de l'acteur.
-- **`sub(topic, handler)`** — S'abonne à un événement et retourne la fonction de désabonnement.
-- **`do(payload)`** — Déclenche le reducer correspondant à la quête courante.
-- **`doSync(action)`** — Déclenche un reducer et synchronise immédiatement l'état dans le warehouse.
-- **`dispatch(type, payload, meta, error)`** — Déclenche un reducer spécifique.
-- **`getAPI(id, namespace, withPrivate, autoSysCall)`** — Retourne l'API d'un acteur.
-- **`getState(goblinId)`** — Récupère l'état d'un acteur, y compris sur d'autres tribes.
-- **`isAlive(goblinId)`** — Vérifie si un acteur est vivant et créé localement.
-- **`kill(ids, parents, feed)`** — Détache et supprime des acteurs du warehouse.
-- **`release(goblinId)`** — Libère un acteur via le système d'événements.
-- **`cancel()`** — Annule l'exécution de la quête courante.
-- **`fireAndForget()`** — Marque la quête comme fire-and-forget (pas d'attente de réponse).
-- **`isCanceled(result)`** — Vérifie si un résultat indique une annulation.
-- **`go(cmd, cmdArgs, delay)`** — Exécute une commande de manière asynchrone via événement (avec délai optionnel).
-- **`defer(action)`** — Ajoute une action à exécuter à la fin de la quête.
-- **`fail(title, desc, hint, ex)`** — Signale un échec avec notification desktop.
-- **`logCommandError(ex, msg)`** — Log une erreur de commande pour overwatch.
-- **`sysCall(questName, questArguments)`** — Appelle une quête (au sein du même acteur ou via l'acteur singleton `goblin`) en garantissant la présence d'un `desktopId`, en s'appuyant sur `goblin.sysCall` lorsque l'acteur n'est pas en cours de création.
-- **`sysCreate()`** — Crée l'acteur courant dans le feed système.
-- **`sysKill()`** — Supprime l'acteur courant du feed système.
-- **`getSystemDesktop()`** — Retourne le desktop système correspondant au desktop courant.
-- **`getDesktop(canFail)`** — Récupère l'ID du desktop courant.
-- **`getSession()`** — Récupère l'ID de session à partir du desktop.
-- **`getStorage(service, session)`** — Retourne l'API d'un service de stockage.
-- **`hasAPI(namespace)`** — Vérifie si un namespace d'API est disponible sur le bus.
-- **`newResponse(routing)`** — Crée une nouvelle réponse bus avec routage spécifique.
-- **`respArgsLocal()`** — Construit les arguments de réponse pour un routage strictement local (utilisé par `sub.local` et les callbacks internes).
+- **`create(namespace, args)`** — Crée un acteur et retourne son API.
+- **`createFor(goblinName, goblinId, namespace, args)`** — Crée un acteur rattaché à un parent précis. Le `desktopId` est obligatoire.
+- **`createNew(namespace, args)`** — Crée avec un identifiant UUID généré.
+- **`createView(namespace, args, view)`** — Crée avec une vue filtrée (`with`/`without`).
+- **`createPlugin(namespace, args)`** — Crée un plugin `namespace@<id courant>`.
+- **`createEntity(id, properties, view)`** — Crée une entité via [goblin-workshop].
+- **`createCache(goblinId)`** — Crée le service de cache si nécessaire.
+- **`cmd(cmd, args)`** — Envoie une commande sur le bus.
+- **`evt(topic, payload)`** — Émet un événement préfixé par l'identifiant de l'acteur. `evt.send` préfixe par le type de l'acteur et `evt.full` n'ajoute aucun préfixe.
+- **`sub(topic, handler)`** — S'abonne à un événement. `sub.local` limite à l'hôte local, `sub.wait` et `sub.localWait` attendent un événement, `sub.callAndWait` et `sub.localCallAndWait` exécutent un appel puis attendent l'événement.
+- **`do(payload)`** — Déclenche le reducer de même nom que la quête.
+- **`doSync(action)`** — Idem, avec publication immédiate dans le warehouse.
+- **`dispatch(type, payload, meta, error)`** — Déclenche un reducer précis.
+- **`getAPI(id, namespace, withPrivate, autoSysCall)`** — Construit l'API d'un acteur à partir du registre de commandes.
+- **`getState(goblinId)`** / **`isAlive(goblinId)`** — État (y compris d'une autre tribe) et présence locale d'un acteur.
+- **`kill(ids, parents, feed)`** / **`release(goblinId)`** — Détache des acteurs ou notifie leur libération.
+- **`cancel()`**, **`fireAndForget()`**, **`isCanceled(result)`** — Contrôle du résultat de la quête.
+- **`go(cmd, cmdArgs, delay)`** — Planifie une commande via l'événement `<goblin-run>`. Retourne une fonction d'annulation si un délai est donné.
+- **`defer(action)`** — Ajoute une action exécutée à la fin de la quête.
+- **`sysCall`**, **`sysCreate`**, **`sysKill`** — Appels et cycle de vie dans le feed système.
+- **`getSystemDesktop()`**, **`getDesktop(canFail)`**, **`getSession()`**, **`getStorage(service, session)`** — Contexte de bureau et de session.
+- **`hasAPI(namespace)`** — Présence d'un namespace sur le bus.
+- **`newResponse(routing)`**, **`respArgs()`**, **`respArgsLocal()`** — Réponses bus.
+- **`fail(title, desc, hint, ex)`** / **`logCommandError(ex, msg)`** — Notification sur le desktop et log pour Overwatch.
 
-### `lib/scheduler.js`
+### `lib/scheduler.js` et `lib/scheduler-queue.js`
 
-Gestionnaire de files d'attente pour l'exécution des quêtes. Implémente trois modes d'exécution (parallèle, série, immédiat) avec gestion des priorités et prévention des deadlocks lors des opérations de création/suppression d'acteurs.
+`Scheduler` détermine le mode d'exécution et alimente une `SchedulerQueue`. Cette file contient trois listes (parallel, serie, immediate) et émet des événements `awake`. La liste `immediate` est prioritaire et reprend la file à la fin du `create`. La liste `serie` est protégée par un mutex. Le `Scheduler` possède aussi une file séquentielle `QuestsQueue` qui garantit l'ordre de dispatch.
 
-La logique de routage est basée sur un tableau de Karnaugh à 4 variables (présence dans une `create`, état `isCreating`, appel depuis `create`, appel sur soi-même) : `S = BD + AD + AB + AC`.
-
-#### Méthodes publiques
-
-- **`dispatch(type, payload)`** — Ajoute une quête à la file d'attente appropriée selon son mode.
-
-### `lib/guildEnforcer.js`
-
-Système de sécurité pour contrôler l'accès aux quêtes. Implémente un modèle de capacités avec rôles, compétences, et authentification JWT. Gère les utilisateurs invités et les politiques de sécurité configurables avec cache SQLite optionnel (activé via `enableGuildEnforcerCache`).
-
-Les utilisateurs invités inactifs depuis plus de 5 minutes sont supprimés automatiquement toutes les minutes. Si la variable d'environnement `GOBLIN_ENFORCER_LOOSE` est définie, l'enforcer n'est pas gelé et peut être modifié après initialisation.
-
-Le niveau de politique par défaut est contrôlé par `busConfig.defaultPolicyLevel` : niveau 0 permet tout (system + guest), niveau 1 requiert un token JWT pour les actions non-system.
-
-#### Méthodes publiques
-
-- **`shield(cmd, quest, skills)`** — Protège une quête avec des compétences requises.
-- **`enforce(object, rank)`** — Assigne un rang et des capacités à un objet.
-- **`enroleUser(tokenData)`** — Enregistre un utilisateur à partir d'un token JWT (utilise les claims `aud` et autres).
-- **`deroleUser(tokenData)`** — Supprime un utilisateur du système.
-- **`registerUser(userInfos)`** — Enregistre manuellement un utilisateur.
-- **`getUser(userId)`** — Récupère un utilisateur par son ID (avec fallback sur le cache SQLite).
-- **`isBlocked(goblin, cmd)`** — Vérifie si un acteur est bloqué pour une commande.
-- **`addGuestUser(footprint)`** — Ajoute un utilisateur invité avec son empreinte.
-- **`getRankingPredictions(cmd)`** — Retourne les prédictions de ranking par rôle pour une commande.
-- **`dispose()`** — Nettoie les ressources (intervalle de nettoyage, base SQLite).
-
-### `lib/ripley.js`
-
-Système de persistance pour les acteurs. Gère la sérialisation/désérialisation des états via différents backends (Cryo) avec support pour la réplication et la synchronisation temps réel. Fournit un middleware Redux (`persistWith`) pour l'interception automatique des actions.
-
-#### Méthodes publiques
-
-- **`ripley(store, db, logger)`** — Rejoue les actions persistées dans le store Redux.
-- **`persistWith(filters)`** — Middleware Redux pour la persistance automatique selon les filtres.
-- **`hasMode(mode)`** — Vérifie si un mode de persistance est supporté (`all`, `last`, `allbykeys`).
-
-### `lib/ripleySync.js`
-
-Utilitaires pour la synchronisation Ripley entre client et serveur. Contient la classe `RipleyWriter` (stream `Writable`) pour la réception progressive des actions, et l'algorithme `computeRipleySteps` pour calculer les lots de synchronisation sans scinder les `commitId`.
-
-#### Fonctions publiques
-
-- **`computeRipleySteps(persisted, commitCnt, limit=20)`** — Calcule les étapes de synchronisation en préservant l'intégrité des commitId. Retourne `[persisted.length]` si `commitCnt` est absent (ancien serveur). Garantit que toutes les actions d'un même `commitId` restent dans le même step.
-- **`applyPersisted(quest, db, actions, progress)`** — Applique un lot d'actions persistées dans une transaction Cryo.
-- **`wrapForSyncing(quest, db, horde, handler, progress)`** — Enveloppe une opération de sync avec reporting de progression (après 1 seconde de délai).
+- **`pause()`** / **`resume()`** — Suspend ou reprend le traitement parallel et serie.
+- **`infos`** — Taille des trois listes.
 
 ### `lib/service.js`
 
-Service principal singleton (`goblin`) qui gère l'initialisation du système, la synchronisation Ripley, les métriques, et les quêtes système. S'initialise via la quête `_init` en s'abonnant aux événements de cycle de vie du bus (ajout/suppression d'orcs, libération de branches warehouse, exécution fire-and-forget).
-
-L'option `--disable-actions-sync` sur la ligne de commande permet de désactiver la synchronisation même si elle est configurée à `true`.
+Singleton `goblin`. Sa quête `_init` s'abonne aux événements `warehouse.released`, `<axon-orc-added>`, `<axon-orc-removed>` et `<goblin-run>`, charge la configuration de synchronisation et affiche la bannière de démarrage.
 
 #### Quêtes publiques
 
-- **`ripleyServer(db, actions, commitIds, userId)`** — Traite les actions de synchronisation côté serveur : applique les actions client (`$4ellen`), récupère les actions manquantes depuis Cryo, et retourne un stream de persistence.
-- **`ripleyClient(db)`** — Orchestre la synchronisation complète côté client avec gestion des `zeroRows` (actions interrompues).
-- **`ripleyCheckBeforeSync(db, noThrow)`** — Vérifie la compatibilité locale/serveur avant synchronisation.
-- **`ripleyCheckForCommitId(db, commitIds)`** — Vérifie si des commitIds existent sur le serveur et compte les nouvelles persistances. Itère sur plusieurs commitIds (fallback sur le deuxième si le premier est inconnu).
-- **`ripleyPersistFromZero(db, goblinIds)`** — Vérifie si des actions avec commitId zéro sont déjà persistées côté serveur.
-- **`_ripleyPrepareSync(db)`** — Prépare les données pour la synchronisation (tague les nouvelles actions avec commitId zéro).
-- **`_ripleyApplyPersisted(db, persisted, newCommitId, rows)`** — Applique les actions persistées reçues du serveur via `insertOrCreate`.
-- **`status()`** — Affiche l'état de tous les acteurs instanciés dans les logs.
-- **`xcraftMetrics()`** — Collecte les métriques système (instances, queues, running quests, localStorage).
-- **`tryShutdown(wait)`** — Attend la fin des synchronisations en cours avant l'arrêt.
-- **`sysCreate(desktopId, goblinId)`** — Crée un acteur dans le feed système.
-- **`sysKill(desktopId, goblinId)`** — Supprime un acteur du feed système.
-- **`sysCall(desktopId, goblinId, namespace, questName, questArguments)`** — Crée temporairement un acteur, appelle une quête, puis le supprime.
-- **`cache-clear()`** — Vide le cache global du système.
-- **`getQuestGraph()`** — Retourne le graphe des appels entre quêtes (depuis questTracer).
+- **`ripleyServer(db, actions, commitIds, userId)`** — (serveur) applique les actions client et retourne les nouveaux persists.
+- **`ripleyClient(db)`** — (client) orchestre une synchronisation complète, avec reprise des actions `zero`.
+- **`ripleyCheckBeforeSync(db, noThrow)`** — Vérifie la compatibilité avec le serveur.
+- **`ripleyCheckForCommitId(db, commitIds)`** — (serveur) vérifie la connaissance d'un commitId et compte les nouveaux persists.
+- **`ripleyPersistFromZero(db, goblinIds)`** / **`ripleyGetAllPersist(db)`** — (serveur) reprise après interruption et bootstrap.
+- **`_ripleyPrepareSync(db)`**, **`_ripleyApplyPersisted(...)`** — Quêtes internes du client.
+- **`tryShutdown(wait)`** — Attend la fin des synchronisations avant l'arrêt.
+- **`sysCreate`**, **`sysKill`**, **`sysCall`** — Création/destruction temporaires dans le feed système.
+- **`status()`**, **`xcraftMetrics()`**, **`getQuestGraph()`**, **`cache-clear()`** — Diagnostic et maintenance.
 
-### `lib/appBuilder.js`
+### `lib/ripleySync.js`
 
-Constructeur d'applications Xcraft. Simplifie la création d'applications complètes avec configuration par défaut, intégration workshop, et gestion des thèmes. La quête `boot` générée charge la configuration depuis `xcraft-core-etc` et initialise workshop si activé. Un hook de démarrage personnalisé peut être fourni via `config.quests.boot`.
+Utilitaires de synchronisation :
 
-#### Options de configuration
+- **`computeRipleySteps(persisted, commitCnt, limit=20)`** — Calcule les lots sans scinder un `commitId`. Retourne `[persisted.length]` pour un ancien serveur.
+- **`applyPersisted(quest, db, actions, progress)`** — Applique un lot dans une transaction Cryo, avec rollback en cas d'erreur.
+- **`wrapForSyncing(quest, db, horde, handler, progress)`** — Signale l'état « en synchronisation » si l'opération dépasse 1 seconde.
+- **`RipleyWriter`** — Stream `Writable` qui reçoit les persists du serveur.
+- **`SHUTTING_DOWN_KEY`** — Clé de session signalant l'arrêt en cours.
 
-- **`quests`** : Quêtes personnalisées à enregistrer (dont `boot` optionnel)
-- **`logicHandlers`** : Reducers Redux additionnels
-- **`icon`** : Emoji pour les logs (défaut `👺`)
-- **`useWorkshop`** : Active l'intégration workshop (défaut `true`)
-- **`desktop`**, **`themeContext`**, **`defaultTheme`**, **`defaultContextId`** : Configuration UI
+### `lib/ripley.js` et `lib/ripley/cryo.js`
 
-### `lib/workerBuilder.js` et `lib/queueBuilder.js`
+`Ripley` est un middleware Redux (`persistWith`) qui persiste les actions filtrées par des règles. Il délègue au backend Cryo (`lib/ripley/cryo.js`), qui appelle `cryo.freeze`, mémorise la dernière action persistée et émet `<goblin-commitId-freezed>`. Les actions rejouées via `ripley()` ne sont pas persistées une seconde fois. Les modes supportés sont `all`, `last` et `allbykeys`.
 
-Constructeurs pour les systèmes de workers et files d'attente. `workerBuilder` crée un acteur instanciable avec un mode d'ordonnancement `background`, tandis que `queueBuilder` crée un singleton qui souscrit à un événement et distribue les jobs via une `JobQueue`.
+### `lib/guildEnforcer.js`
 
-- **`queueBuilder(queueName, config)`** — Crée une file d'attente avec config : `sub` (topic d'événement, obligatoire), `queueSize` (défaut 100), `queueOptions`, `jobIdGetter` (défaut : `msg.id`).
-- **`workerBuilder(queueName, config)`** — Crée un worker avec config : `workQuest` (fonction de traitement obligatoire).
+Système de sécurité. Il construit les utilisateurs membres (`members`), les rangs (`ranks`) et la politique d'enrôlement. Il nettoie les invités inactifs depuis plus de 5 minutes (vérification chaque minute). Il maintient en option un cache SQLite partagé des utilisateurs, nettoyé au démarrage par l'application maître.
 
-### `lib/smartId.js`
-
-Utilitaire pour la gestion des identifiants d'acteurs au format `type@uid`. Fournit l'encodage/décodage sécurisé des identifiants externes (encodage URI avec remplacement des caractères `-_.!~*'()`).
-
-#### Méthodes publiques
-
-- **`SmartId.encode(externalId)`** — Encode un identifiant externe pour usage dans les IDs Xcraft.
-- **`SmartId.decode(id)`** — Décode un identifiant Xcraft.
-- **`SmartId.from(type, externalId, encode=true)`** — Crée un ID complet `type@encodedId`.
-- **`SmartId.toExternalId(id)`** — Extrait et décode la partie externe d'un ID.
-- **`SmartId.getUid(id)`** — Extrait la partie UID d'un identifiant.
-- **`isValid()`** — Valide le format selon le type attendu.
-- **`isMalformed()`** — Inverse de `isValid()`.
-- **`hasUid()`** — Vérifie la présence d'une partie UID.
-
-### `lib/cache/index.js`
-
-Gestionnaire de cache avec TTL et système de ranking. Permet de limiter le nombre d'instances d'acteurs en mémoire avec éviction automatique des moins utilisés. Utilise directement le store Redux du goblin-cache (sans passer par le bus) pour les opérations de mise à jour.
-
-#### Méthodes publiques
-
-- **`CacheLib.update(goblinId, TTL)`** — Met à jour le TTL d'un acteur ; un délai de 0 supprime l'entrée.
-- **`CacheLib.rank(goblinName, goblinId, size)`** — Ajoute un acteur au système de ranking avec taille de cache.
-
-### `lib/cache/cache.js`
-
-Implémentation du service de cache avec gestion des timeouts, ranking des instances (`RankedCache`), et métriques. Utilise une structure d'état privée non exposée au warehouse.
-
-#### État et modèle de données
-
-- `private.goblins` : Map des handles de timeouts actifs par goblinId
-- `private.cache` : Map des instances `RankedCache` par goblinName
-- `private.items` : Map des items dans les caches par goblinId
-
-### `lib/cryo/manager.js`
-
-Gestionnaire centralisé pour les opérations Cryo. Fournit une interface unifiée pour la lecture, recherche, et synchronisation des données persistées. Maintient des instances de lecteurs/chercheurs par base de données pour optimiser les connexions SQLite. La méthode `syncBroadcast` émet un événement `cryo-db-synced` avec debouncing (500ms).
-
-#### Méthodes publiques
-
-- **`reader(quest, db)`** — Retourne un `CryoReader` pour la base de données.
-- **`fullTextSearcher(quest, db)`** — Retourne un `CryoSearch` pour les requêtes FTS/vectorielles.
-- **`search(quest, db, searchQuery, limit)`** — Recherche textuelle simple.
-- **`search2(quest, db, searchQuery, locales, scopes, limit)`** — Recherche textuelle avec filtres locales/scopes et scoring normalisé.
-- **`searchDistance(quest, db, vectors, limit)`** — Recherche vectorielle par similarité.
-- **`searchDistance2(quest, db, vectors, locales, scopes, limit)`** — Recherche vectorielle avec filtres.
-- **`getDistinctScopes(quest, db)`** — Récupère tous les scopes distincts.
-- **`searchRaw(quest, db, pattern, regex, options)`** — Recherche brute avec expressions régulières.
-- **`getState(quest, db, goblinId, shape, type)`** — Récupère l'état d'un acteur depuis Cryo.
-- **`getIds(quest, db, goblinType, options)`** — Itère sur les IDs d'un type d'acteur.
-- **`pickAction(quest, db, id, properties)`** — Récupère des propriétés spécifiques d'une action.
-- **`isPersisted(quest, db, goblinId)`** — Vérifie si un acteur a au moins une action `persist`.
-- **`isPublished(quest, db, goblinId)`** — Vérifie si un acteur est dans `lastPersistedActions`.
-- **`commitStatus(quest, db, goblinId)`** — Retourne `'none'`, `'staged'` ou `'commited'`.
-- **`syncBroadcast(db)`** — Diffuse un événement de synchronisation (debounced 500ms).
-
-### `lib/cryo/reader.js`
-
-Lecteur SQLite pour les bases de données Cryo. Étend `SQLite` de `xcraft-core-book`. Fournit des méthodes optimisées pour lire les états d'acteurs et effectuer des requêtes typées via `QueryBuilder`. Supporte les requêtes exécutées dans un worker thread via Piscina (`queryWorkerStream`) pour ne pas bloquer le thread principal.
-
-#### Méthodes publiques
-
-- **`getGoblinState(goblinId, type='persist')`** — Récupère l'état d'un acteur spécifique.
-- **`getGoblinIds(goblinType, options)`** — Itère sur les IDs d'acteurs (générateurs).
-- **`queryArchetype(goblinType, shape, noAttach=false)`** — Retourne un `FromQuery` typé pour requêter via `xcraft-core-pickaxe`. Le troisième argument `noAttach` permet de désactiver les attachements automatiques de bases (utile pour les workers).
-- **`queryWorkerStream(query)`** — Exécute une requête `FinalQuery` dans un worker thread Piscina et retourne un stream de lignes. Idéal pour les requêtes volumineuses sans bloquer le thread principal.
-- **`queryEmbeddings(vectors)`** — Retourne un `QueryBuilder` pour les recherches vectorielles.
-- **`pickAction(id, properties)`** — Récupère des propriétés JSON spécifiques d'une action.
-- **`isPersisted(goblinId)`** — Vérifie la présence d'une action `persist`.
-- **`isPublished(goblinId)`** — Vérifie la présence dans `lastPersistedActions`.
-- **`commitStatus(goblinId)`** — Retourne `'none'`, `'staged'` ou `'commited'`.
-- **`attachReader(reader)`** — Attache une autre base de données pour les requêtes cross-DB.
-- **`attachDB(dbName, alias)`** — Attache une base par son nom et alias (mode lecture seule via URI).
-- **`iterateQuery(sql)`** — Exécute une requête SQL personnalisée (générateur).
-- **`normalizeFileName(fileName)`** — Normalise un nom de fichier (caractères interdits et noms réservés Windows).
-
-### `lib/cryo/search.js`
-
-Moteur de recherche pour les bases de données Cryo. Implémente la recherche textuelle FTS5 et vectorielle (`sqlite-vector`) avec support pour les locales, scopes, et scoring normalisé.
-
-#### Méthodes publiques
-
-- **`search(searchQuery, limit=100)`** — Recherche FTS5 simple (générateur de goblinId).
-- **`search2(searchQuery, locales, scopes, limit=100)`** — Recherche FTS5 avec scoring normalisé (générateur d'objets `{documentId, locale, scope, data, rawScore, normScore}`).
-- **`searchDistance(vectors, limit=100)`** — Recherche vectorielle (générateur d'objets avec `distance`).
-- **`searchDistance2(vectors, locales, scopes, limit=100)`** — Recherche vectorielle avec filtres.
-- **`getDistinctScopes()`** — Itère sur les scopes distincts.
-- **`searchRaw(patterns, regex, options)`** — Recherche brute sur les actions avec extraction par regex (générateur de `{id, refs[]}`). L'option `last` utilise la table `lastPersistedActions`.
-
-### `lib/cryo/shapes.js`
-
-Définitions des shapes pour les structures de données Cryo utilisées dans `QueryBuilder`.
-
-- **`LastPersistedActionShape(shape)`** — Shape pour les actions dans `lastPersistedActions` avec état typé.
-- **`EmbeddingsShape`** — Shape pour les données d'embeddings vectoriels.
-
-### `lib/cryo/workers/sql.js`
-
-Worker Piscina pour l'exécution de requêtes SQL en dehors du thread principal. Reçoit une requête sérialisée (`FinalQuery.json()`), ouvre une connexion SQLite en lecture seule, et envoie les résultats via un `MessagePort` sous forme de stream. Utilisé par `CryoReader.queryWorkerStream`.
-
-### `lib/sync/index.js` et `lib/sync/hordesSync.js`
-
-Système de synchronisation distribuée. `HordesSync` gère le bootstrap (récupération initiale) et la synchronisation incrémentale entre nœuds via `xcraft-core-horde`. Il surveille la qualité de la connexion socket (`<perf>` events) et relance automatiquement les syncs après reconnexion ou après un lag de 30 secondes.
-
-Lors du bootstrap, si le dernier `commitId` local n'est pas reconnu par le serveur, la base est renommée et un bootstrap complet est effectué. Le timeout `maxLagDeltaTime` est élevé à 4 minutes pendant le bootstrap.
-
-#### Méthodes publiques (HordesSync)
-
-- **`boot()`** — Initialise avec bootstrap des bases vides ou incompatibles ; émet `goblin.hordesSync-initialized`.
-- **`sync(db)`** — Lance la synchronisation incrémentale d'une base (debounced 500ms dans `Sync`).
-
-### `lib/elf/index.js`
-
-Nouvelle génération d'acteurs avec API moderne basée sur les classes et proxies JavaScript. Simplifie la création d'acteurs avec gestion automatique de l'état, intégration Cryo native, et API fluide.
-
-Les deux modèles de base sont `Elf` (instanciable, avec `create`) et `Elf.Alone` (singleton, avec `init`). La persistance est activée via `Elf.Archetype` (logique) qui enregistre automatiquement les quêtes `persist`, `insertOrCreate`, `insertOrReplace`, et `$4ellen`.
-
-La propriété statique `noHistory` sur une classe `Archetype` permet de ne conserver que la dernière action `persist` (mode `last`) au lieu de tout l'historique (mode `all`).
-
-La propriété statique `indices` sur une classe `Archetype` permet de déclarer des indices SQLite pour améliorer les performances des requêtes `queryArchetype`.
-
-#### Méthodes publiques statiques
-
-- **`Elf.configure(elfClass, logicClass)`** — Configure un acteur Elf : enregistre toutes les quêtes, handlers Redux, et ripley.
-- **`Elf.birth(elfClass, logicClass)`** — Enregistre la classe et retourne la fonction de configuration pour `xcraftCommands`.
-- **`Elf.trial(logicClass)`** — Crée une instance de logique pour les tests unitaires (sans infrastructure Xcraft).
-- **`Elf.newId(type)`** — Génère un identifiant `type@uuid`.
-- **`Elf.uuid()`** — Génère un UUID v4.
-- **`Elf.id(id)`** — Aide au typage des identifiants (identité).
-- **`Elf.Sculpt(type)`** — Crée une classe d'état typée à partir d'un shape Stone.
-- **`Elf.createFeed(prefix)`** — _(Déprécié)_ Crée un feed système temporaire.
-- **`Elf.getLogic(logicClass)`** — Instancie une classe de logique.
-- **`Elf.getClass(type)`** — Récupère la classe Elf enregistrée pour un type.
-- **`Elf.quests(elfClass)`** — Retourne la liste des noms de quêtes d'une classe.
-- **`Elf.goblinName(derivatedClass)`** — Extrait le goblinName (première lettre en minuscule).
-- **`Elf.Archetype.exist(cryo, actorId)`** — Vérifie si un acteur existe dans la base Cryo associée (même s'il est trashed).
-
-#### Méthodes d'instance (dans les quêtes)
-
-- **`this.newQuestFeed(prefix)`** — Crée un feed temporaire avec nettoyage automatique via `quest.defer`. Ne peut pas être appelé depuis une quête `create`.
-- **`this.killFeed(feedId, xcraftRPC)`** — Supprime un feed et tous ses acteurs.
-- **`this.kill(ids, parents, feed, xcraftRPC)`** — Supprime des acteurs spécifiques.
-- **`this.persist()`** — Persiste l'état (Archetype uniquement).
-- **`this.insertOrCreate(id, desktopId, state, commitId)`** — Insère un état si l'acteur n'existe pas, sinon retourne `undefined`.
-- **`this.insertOrReplace(id, desktopId, state)`** — Insère ou remplace un état.
-- **`this.api(id)`** — Retourne l'API d'un acteur existant avec injection de l'état local.
-- **`this.winDesktopId()`** — Retourne le desktopId d'une fenêtre locale ou distante.
-- **`this.cryo.listenTo(actorType, callback)`** — S'abonne aux changements Cryo (insertion, mise à jour, suppression) d'un type d'acteur ; envoie un événement initial (`id` à `null`) puis un événement par changement détecté.
-
-### `lib/elf/spirit.js`
-
-Système de proxies pour la gestion d'état des acteurs Elf. Traduit les opérations JavaScript naturelles (lecture, écriture, suppression, itération) en opérations sur structures Immutable.js. Supporte les listes, objets imbriqués, et types primitifs.
-
-#### Méthodes publiques
-
-- **`Spirit.from(sculptedClass)`** — Crée un proxy Spirit à partir d'une classe sculptée et d'un Shredder.
-
-### `lib/elf/traps.js`
-
-Collection de proxies pour différents contextes d'exécution Elf. Gère l'interception des appels de méthodes selon le côté (serveur `directTraps` vs client `forwardTraps`), la transformation des reducers (`logicTraps`), et l'accès à l'état immutable (`stateTraps`, `mapTraps`).
-
-- **`logicTraps`** — Pour les appels `this.logic.xxx()` : calcule le payload en comparant les arguments aux données du message. Les arguments identiques à ceux du message courant sont omis (seules les surcharges sont transmises).
-- **`stateTraps`** — Pour l'accès aux propriétés d'état avec conversion vers `List` ou objets proxifiés.
-- **`mapTraps`** — Pour l'énumération (`Object.keys`, `Object.values`) des objets immutables.
-- **`directTraps`** — Pour les appels directs côté serveur (dans `$4ellen` et similaires).
-- **`forwardTraps`** — Pour les appels via bus côté client ; mappe les arguments nommés, gère `create`/`insertOrCreate`/`insertOrReplace`.
-- **`meTraps`** — Pour `this._me()` : retourne l'API `quest.me` de l'acteur courant.
-
-### `lib/elf/me.js`
-
-Wrapper pour l'API `quest.me` des acteurs Elf. Fournit une interface unifiée qui combine les méthodes du Quest et celles de l'instance Elf avec gestion automatique du contexte. Expose également l'accès au `CryoManager` via `this.cryo`, y compris la méthode réactive `listenTo`.
-
-#### Méthodes publiques
-
-- **`newQuestFeed(prefix)`** — Crée un feed temporaire avec nettoyage automatique.
-- **`killFeed(feedId, xcraftRPC)`** — Supprime un feed.
-- **`kill(ids, parents, feed, xcraftRPC)`** — Supprime des acteurs.
-- **`persist(...args)`** — Persiste l'état avec synchronisation automatique.
-- **`winDesktopId()`** — Retourne le desktopId d'une fenêtre locale ou distante, en cherchant d'abord dans les fenêtres locales (`WM`) puis dans le warehouse (labs distants).
-- **`Me.createFeed(prefix)`** _(statique)_ — Crée un identifiant de feed `system@[prefix@]uuid`.
-
-### `lib/elf/runner.js`
-
-Runner de tests pour les acteurs Elf. Initialise un serveur Xcraft complet via `xcraft-core-host` et fournit un contexte de quête pour l'exécution des tests. Nettoie le répertoire de configuration entre les runs (si le chemin se termine par `-test`).
-
-#### Méthodes publiques
-
-- **`init()`** — Initialise l'environnement de test Xcraft (idempotent, gère le timeout de dispose).
-- **`dispose()`** — Déclenche l'arrêt du serveur (avec délai de 2s). Peut être désactivé via `GOBLIN_RUNNER_SHUTDOWN=no`.
-- **`it(callback)`** — Exécute un test avec le contexte `Me` disponible via `this`.
-
-### `lib/elf/list.js`
-
-Wrapper pour les arrays de l'état des acteurs Elf. Implémente le protocole d'itération (`Symbol.iterator`) et les méthodes communes tout en maintenant l'immutabilité du Shredder sous-jacent.
-
-#### Méthodes publiques
-
-- **`push(...args)`** — Ajoute des éléments à la liste.
-- **`map(func)`** — Transforme les éléments et retourne un array JavaScript.
-- **`deleteByValue(value)`** — Supprime un élément par sa valeur.
-- **`indexOf(value)`** — Retourne l'index d'un élément.
-- **`includes(...args)`** — Vérifie la présence d'un élément.
-
-### `lib/elf/utils.js`
-
-Fonctions utilitaires pour l'introspection des classes Elf.
-
-- **`getProperties(obj)`** — Propriétés (non-fonctions) d'un objet.
-- **`getAllFuncs(obj, depth=2)`** — Toutes les fonctions jusqu'à la profondeur d'héritage.
-- **`checkId(id, goblinName)`** — Valide le format d'un ID selon le type d'acteur attendu.
-
-### `lib/elf/params.js` et `lib/elf/cacheParams.js`
-
-Cache pour les paramètres des quêtes et reducers. Évite la réflexion répétée sur les signatures de fonctions. `CacheParams` maintient deux registres : `cacheQuestParams` (paramètres des quêtes Elf) et `cacheReduceParams` (paramètres des reducers de logique).
-
-#### Méthodes publiques (CacheParams)
-
-- **`register(goblinName, questName, params)`** — Enregistre les paramètres d'une quête/reducer.
-- **`get(goblinName, questName)`** — Récupère les paramètres.
-- **`know(goblinName)`** — Vérifie si un goblin est connu.
-
-### `lib/types.js`
-
-Définitions de types spécialisés pour le système Xcraft, basées sur `xcraft-core-stones`.
-
-- **`IdType`** — Type pour les identifiants au format `` `type@${string}` `` avec validation du préfixe.
-- **`id(name)`** — Factory pour créer des types d'identifiants typés.
-- **`MetaShape`** — Shape pour les métadonnées : `index`, `locale`, `scope`, `vectors` (embeddings), `status` (published/trashed/archived).
-- **`ChunkShape`** — Shape pour les chunks d'embeddings : `chunk` et `embedding`.
+- **`shield(cmd, quest, skills)`**, **`isBlocked(goblin, cmd)`**, **`getRankingPredictions(cmd)`**
+- **`enforce(object, rank)`**, **`addGuestUser(footprint)`**, **`getUser(userId)`**
+- **`enroleUser(tokenData)`**, **`deroleUser(tokenData)`**, **`registerUser(userInfos)`**
+- **`dispose()`**
 
 ### `lib/capsAndSkills.js`
 
-Système de capacités et compétences pour le Guild Enforcer. `Capability` gère la création, délégation (avec TTL optionnel) et révocation de capacités stockées dans des `WeakMap`. `SkillsSet` définit les contrats de compétences requis pour accéder à une ressource.
-
-#### Méthodes publiques
-
-- **`Capability.create(goblin, name, delegatable=false, owner=null)`** — Crée une capacité pour un acteur.
-- **`Capability.delegate(cap, goblin, ttl=0, delegatable=false)`** — Délègue une capacité avec révocation automatique.
-- **`Capability.enable(cap)`** / **`Capability.disable(cap)`** — Active/désactive une capacité.
-- **`Capability.fulfill(goblin, quest)`** — Vérifie si un goblin satisfait le contrat d'une quête.
-- **`SkillsSet.define(refToProtect, skills)`** — Définit un ensemble de compétences requises.
-
-### `lib/osInfo.js`
-
-Informations système normalisées (hostname et username en minuscules, `@` remplacé par `-`) pour la génération d'empreintes d'utilisateurs invités.
-
-### `lib/scheduler-queue.js`
-
-File d'attente avancée pour le scheduler. Implémente trois listes internes (parallel, serie, immediate) avec émission d'événements `awake` pour le dispatch. La liste `immediate` prend toujours la priorité et débloque la liste principale si mise en pause.
-
-#### Méthodes publiques
-
-- **`pause()`** — Met en pause le traitement (parallel et serie).
-- **`resume()`** — Reprend le traitement.
-
-### `lib/questTracer.js`
-
-Traceur pour analyser les appels entre acteurs (désactivé par défaut via commentaire dans `lib/quest.js`). Génère un graphe des dépendances au format Cytoscape en excluant `warehouse`, `goblin`, et `workshop`.
-
-- **`trace(fromNamespace, toNamespace)`** — Enregistre un appel entre deux namespaces.
-- **`graph`** — Tableau de nœuds et liens au format Cytoscape.
-
-### `lib/goblin-orc.js`
-
-Acteur Goblin simple pour représenter les connexions bus (orcs). Fournit un stockage clé-valeur pour les métadonnées des connexions, créé et supprimé dynamiquement par le service principal lors des événements `<axon-orc-added>` et `<axon-orc-removed>`.
-
-#### État et modèle de données
-
-- `id` : Identifiant de l'orc
-- `data` : Map clé-valeur pour les métadonnées
-
-#### Quêtes publiques
-
-- **`create()`** — Initialise un nouvel orc.
-- **`setData(key, data)`** — Stocke une donnée.
-- **`delete()`** — Supprime l'orc.
+- **`Capability.create(goblin, name, delegatable, owner)`**, **`delegate(cap, goblin, ttl, delegatable)`**, **`enable(cap)`**, **`disable(cap)`**, **`fulfill(goblin, quest)`**
+- **`SkillsSet.define(refToProtect, skills)`** — Définit le contrat requis.
 
 ### `lib/shield/db.js`
 
-Base de données SQLite pour le cache persistant des utilisateurs du Guild Enforcer. Utilise des triggers SQLite (`shield_insert`, `shield_update`, `shield_delete`) pour synchroniser avec le registre en mémoire lors des opérations sur la base.
+Base SQLite des utilisateurs (mode WAL). Des triggers appellent les fonctions `shield_insert`, `shield_update` et `shield_delete` pour répercuter les changements sur le registre en mémoire. Elle expose `get`, `save`, `delete` et `deleteAll`.
 
-#### Méthodes publiques
+### `lib/appBuilder.js`
 
-- **`get(id)`** — Récupère un utilisateur par son ID.
-- **`save(id, data)`** — Sauvegarde ou met à jour un utilisateur.
-- **`delete(id)`** — Supprime un utilisateur.
-- **`deleteAll()`** — Supprime tous les utilisateurs.
+Construit une application complète. La quête `boot` générée charge la configuration du profil via [xcraft-core-etc] et appelle `workshop.init` si `useWorkshop` est actif. Elle exécute ensuite la quête `boot` personnalisée (`config.quests.boot`). Elle enregistre aussi `getMandate`, `configureDesktop` et `configureNewDesktopSession`.
 
-### `lib/ripley/cryo.js`
+Options : `quests`, `logicHandlers`, `icon` (`👺`), `useWorkshop` (`true`), `desktop`, `themeContext`, `defaultTheme`, `defaultContextId`.
 
-Backend Cryo pour le système Ripley. Gère la persistance des actions Redux via le service Cryo (appel `cryo.freeze`). Stocke la dernière action persistée dans `lastPersistedAction` et émet l'événement `<goblin-commitId-freezed>` pour coordonner les attentes (`callAndWait`).
+### `lib/queueBuilder.js` et `lib/workerBuilder.js`
 
-#### Méthodes publiques
+- **`queueBuilder(queueName, config)`** — Singleton qui écoute `config.sub` et alimente une `JobQueue`. Options : `sub` (obligatoire), `queueSize` (100), `queueOptions`, `jobIdGetter`. Sa quête `start-worker` crée un worker temporaire, appelle `work`, puis le détruit et émet `<jobId>.done`.
+- **`workerBuilder(queueName, config)`** — Acteur `<queue>-worker` en mode `background`, dont la quête `work` est `config.workQuest` (obligatoire).
 
-- **`ripley(db, dispatch)`** — Rejoue les actions depuis Cryo (subscribe à `cryo.thawed.{db}`).
-- **`persist(action, rules)`** — Persiste une action via `cryo.freeze`.
-- **`hasMode(mode)`** — Vérifie si un mode est supporté (`allbykeys`, `all`, `last`).
-- **`ellen(state, action)`** — Reducer pour l'état Ellen (retourne l'état sans modification).
+### `lib/smartId.js`
+
+Identifiants au format `type@uid`.
+
+- **`SmartId.encode(externalId)`** / **`decode(id)`** — Encodage sûr (caractères `-_.!~*'()` inclus).
+- **`SmartId.from(type, externalId, encode=true)`**, **`toExternalId(id)`**, **`getUid(id)`**
+- **`isValid()`**, **`isMalformed()`**, **`hasUid()`**
+
+### `lib/types.js`
+
+Types et shapes spécialisés.
+
+- **`id(name)`** / **`IdType`** — Type d'identifiant `` `name@${string}` `` avec validation du préfixe.
+- **`MetaShape`** — `index`, `locale`, `scope` (optionnels), `vectors` (enregistrement de `ChunkShape`) et `status` (`published`, `trashed` ou `archived`).
+- **`ChunkShape`** — `chunk` et `embedding` (littéral SQLite de blob).
+
+### `lib/osInfo.js`
+
+Fournit `guestHost` et `guestUser` (minuscules, `@` remplacé par `-`) pour les empreintes d'invités.
+
+### `lib/questTracer.js`
+
+Traceur de graphe d'appels (Cytoscape), désactivé par défaut. Il exclut `warehouse`, `goblin` et `workshop`.
 
 ### `lib/test.js`
 
-Point d'entrée pour les tests. Configure l'environnement Xcraft (`XCRAFT_ROOT`, `GOBLINS_APP`) et exporte le module principal pour utilisation dans les suites de tests.
+Prépare l'environnement de test (`XCRAFT_ROOT`, `GOBLINS_APP`, `initEtc`) et exporte le module principal.
+
+### `lib/cache/index.js` et `lib/cache/cache.js`
+
+Cache d'instances. `CacheLib.update(goblinId, TTL)` gère le TTL (un délai de 0 supprime l'entrée). `CacheLib.rank(goblinName, goblinId, size)` rattache l'acteur au cache et évince les moins utilisés d'un `RankedCache` par type. L'acteur `goblin-cache` stocke un état privé (`private.goblins`, `private.cache`, `private.items`) non publié, expose les métriques `ranked` et `ttl`, et réagit à l'événement `goblin-cache.clear`.
+
+### `lib/cryo/manager.js`
+
+Gestionnaire central, avec un lecteur et un chercheur par base. Il tente d'abord le handle de `xcraft-core-cryo`, puis une connexion en lecture seule.
+
+- **`reader`**, **`fullTextSearcher`**
+- **`search`**, **`search2`**, **`searchDistance`**, **`searchDistance2`**, **`getDistinctScopes`**, **`searchRaw`**
+- **`getState`**, **`getIds`**, **`pickAction`**
+- **`isPersisted`**, **`isPublished`**, **`commitStatus`** (`'none'`, `'staged'` ou `'commited'`)
+- **`syncBroadcast(db)`** — Événement `cryo-db-synced`, debounced à 500 ms, ignoré pour les bases exclues.
+
+### `lib/cryo/reader.js`
+
+`CryoReader` (étend `SQLite`) :
+
+- **`getGoblinState`**, **`getGoblinIds`**, **`pickAction`**, **`isPersisted`**, **`isPublished`**, **`commitStatus`**
+- **`queryArchetype(goblinType, shape, noAttach=false)`** — Requête typée [xcraft-core-pickaxe], avec attachement automatique des autres bases.
+- **`queryWorkerStream(query)`** — Exécute la requête dans un worker Piscina et retourne un stream de lignes.
+- **`queryEmbeddings(vectors)`**, **`attachReader`**, **`attachDB`**, **`iterateQuery`**, **`normalizeFileName`**
+
+### `lib/cryo/search.js`
+
+`CryoSearch` : recherche FTS5 (`search`, `search2` avec scoring normalisé) et vectorielle via `sqlite-vector` (`searchDistance`, `searchDistance2`). Il expose aussi `getDistinctScopes` et `searchRaw`. Chaque fonction n'est activée que si la configuration de [xcraft-core-cryo] (`enableFTS`, `enableVEC`) le permet pour la base.
+
+### `lib/cryo/shapes.js`
+
+- **`LastPersistedActionShape(shape)`** — Action `persist` avec état typé.
+- **`EmbeddingsShape`** — `scope`, `locale`, `documentId`, `chunkId`, `chunk`, `distance`, `embedding`.
+
+### `lib/cryo/workers/sql.js`
+
+Worker Piscina (`exec`) : ouvre une connexion en lecture seule, attache les bases nécessaires et transmet les lignes par `MessagePort`.
+
+### `lib/sync/index.js` et `lib/sync/hordesSync.js`
+
+`Sync.sync(db)` regroupe les demandes avec un debounce de 500 ms et relance en cas d'échec. `HordesSync` gère :
+
+- **`boot()`** — Bootstrap des bases vides ou incompatibles (avec renommage si le dernier `commitId` est inconnu du serveur), puis émission de `goblin.hordesSync-initialized`.
+- **`sync(db)`** — Synchronisation incrémentale via `goblin.ripleyClient`. Elle est ignorée si la socket est perdue, si un lag est en cours, si la base est exclue ou si le boot n'est pas terminé.
+
+Il surveille les événements `<perf>` : un lag de 30 secondes ou plus annule les commandes en cours, et la reconnexion déclenche une resynchronisation complète. Pendant le bootstrap, le délai de lag maximal passe à 4 minutes.
+
+### `lib/elf/index.js`
+
+Implémente `Elf`, `Elf.Alone` (singleton, quête `init`), `Elf.Spirit`, `Elf.Archetype` et les utilitaires statiques.
+
+L'activation d'un `Archetype` enregistre automatiquement :
+
+- la quête `persist` ;
+- les quêtes internes `insertOrCreate` et `insertOrReplace` ;
+- la quête `$4ellen`, utilisée par le serveur Ripley pour rejouer les actions client.
+
+Les propriétés statiques de la classe de logique sont :
+
+- `db` (obligatoire) : nom de la base Cryo ;
+- `indices` : colonnes indexées pour `queryArchetype` ;
+- `noHistory` : conserve uniquement la dernière action `persist`.
+
+Le hook optionnel `beforePersistOnServer()` permet de modifier l'état juste avant le persist final côté serveur.
+
+Options du constructeur (`ElfOptions`) :
+
+- `session` : `{desktopId, parent}` ;
+- `ripley` ;
+- `create` : `{ttl}`, pour passer par `goblin-cache` ;
+- `bus` : `{rpc}`.
+
+Les noms réservés (`Me.reserved`) ne peuvent pas être utilisés comme méthodes ou propriétés, ce qui est vérifié avec `NODE_ENV=development`.
+
+#### Méthodes statiques
+
+- **`Elf.birth(elfClass, logicClass)`** — Enregistre la classe et retourne la fonction pour `xcraftCommands`.
+- **`Elf.configure(elfClass, logicClass)`** — Configure les quêtes, reducers et règles Ripley.
+- **`Elf.trial(logicClass)`** — Instance de logique pour les tests unitaires.
+- **`Elf.Sculpt(type)`** — Classe d'état typée.
+- **`Elf.getLogic(logicClass)`**, **`Elf.getClass(type)`**, **`Elf.quests(elfClass)`**, **`Elf.goblinName(cls)`**
+- **`Elf.newId(type)`**, **`Elf.uuid()`**, **`Elf.id(id)`**
+- **`Elf.createFeed(prefix)`** — _(Déprécié)_ préférer `this.newQuestFeed()`.
+- **`Elf.Archetype.exist(cryo, actorId)`** — Existence dans Cryo, y compris pour un acteur `trashed`.
+
+#### Méthodes d'instance
+
+- **`this.newQuestFeed(prefix)`** — Feed temporaire nettoyé à la fin de la quête (interdit dans `create`).
+- **`this.killFeed(feedId, xcraftRPC)`**, **`this.kill(ids, parents, feed, xcraftRPC)`**
+- **`this.persist()`**, **`this.insertOrCreate(id, desktopId, state, commitId)`**, **`this.insertOrReplace(id, desktopId, state)`**
+- **`this.api(id)`** — API d'un acteur existant, avec lecture de l'état local.
+- **`this.on(eventName, listener, fromActorId)`** — S'abonne à un événement (nettoyé à la destruction).
+- **`this.emit(eventName, data, actorId)`** — Émet un événement.
+- **`this.winDesktopId()`**, **`this.desktop.id()`**, **`this.desktop.emit(topic, data)`**
+- **`this.cryo.*`** — Accès au `CryoManager` (`getState`, `getIds`, `search*`, `reader`, `pickAction`, `isPersisted`, `isPublished`, `sync`, `listenTo`).
+- **`this.log`**, **`this.quest`**, **`this.user`**
+
+### `lib/elf/me.js`
+
+Wrapper `Me` : fusionne `quest.me` et l'instance Elf. Il expose l'état du goblin courant via `state`, les reducers via `logic`, et les services ci-dessus (`cryo`, `desktop`, `on`, `emit`, `persist`, etc.). `Me.createFeed(prefix)` produit `system@[prefix@]uuid`.
+
+### `lib/elf/spirit.js`, `lib/elf/list.js` et `lib/elf/traps.js`
+
+- **`Spirit.from(sculptedClass)`** — Proxy d'état à partir d'un Shredder.
+- **`List`** — Wrapper de tableau immutable (`push`, `map`, `deleteByValue`, `indexOf`, `includes`, `length`, itération).
+- **`logicTraps`** — Appels `this.logic.xxx()` : seuls les arguments qui diffèrent du message courant sont transmis dans le payload.
+- **`stateTraps`** / **`mapTraps`** — Lecture, écriture, suppression et énumération de l'état.
+- **`directTraps`** — Côté serveur : appelle l'implémentation réelle avec un `Me`.
+- **`forwardTraps`** — Côté client : transforme les appels en commandes bus et mappe les arguments positionnels en objet. Gère `create`, `insertOrCreate`, `insertOrReplace`, `api`, ainsi que les options `ttl` et `session`.
+- **`meTraps`** — API de l'acteur courant (`quest.me`).
+
+### `lib/elf/runner.js`
+
+Runner de tests : lance un serveur Xcraft via [xcraft-core-host].
+
+- **`init()`** — Idempotent. Nettoie le répertoire de configuration s'il se termine par `-test`.
+- **`it(callback)`** — Exécute le test avec un `Me` en `this`.
+- **`dispose()`** — Arrêt du serveur, sauf si `GOBLIN_RUNNER_SHUTDOWN=no`.
+
+### `lib/elf/utils.js`, `lib/elf/params.js` et `lib/elf/cacheParams.js`
+
+- **`getProperties(obj)`**, **`getAllFuncs(obj, depth=2)`**, **`checkId(id, goblinName)`**
+- **`cacheQuestParams`** et **`cacheReduceParams`** : instances de `CacheParams` (`register`, `get`, `know`) évitant la réflexion répétée sur les signatures.
+
+### `lib/goblin-orc.js`
+
+Acteur Goblin représentant une connexion bus (orc). Il est créé et supprimé par le service principal lors des événements `<axon-orc-added>` et `<axon-orc-removed>`.
+
+#### État et modèle de données
+
+- `id` : identifiant de l'orc ;
+- `data` : métadonnées clé-valeur.
+
+#### Quêtes publiques
+
+- **`create()`**, **`setData(key, data)`**, **`delete()`**
 
 ## Licence
 
@@ -770,11 +766,17 @@ Ce module est distribué sous [licence MIT](./LICENSE).
 _Ce contenu a été généré par IA_
 
 [xcraft-core-bus]: https://github.com/Xcraft-Inc/xcraft-core-bus
+[xcraft-core-busclient]: https://github.com/Xcraft-Inc/xcraft-core-busclient
 [xcraft-core-cryo]: https://github.com/Xcraft-Inc/xcraft-core-cryo
-[goblin-warehouse]: https://github.com/Xcraft-Inc/goblin-warehouse
+[xcraft-core-book]: https://github.com/Xcraft-Inc/xcraft-core-book
+[xcraft-core-pickaxe]: https://github.com/Xcraft-Inc/xcraft-core-pickaxe
 [xcraft-core-shredder]: https://github.com/Xcraft-Inc/xcraft-core-shredder
 [xcraft-core-stones]: https://github.com/Xcraft-Inc/xcraft-core-stones
 [xcraft-core-horde]: https://github.com/Xcraft-Inc/xcraft-core-horde
+[xcraft-core-host]: https://github.com/Xcraft-Inc/xcraft-core-host
+[xcraft-core-etc]: https://github.com/Xcraft-Inc/xcraft-core-etc
+[xcraft-core-utils]: https://github.com/Xcraft-Inc/xcraft-core-utils
+[xcraft-core-log]: https://github.com/Xcraft-Inc/xcraft-core-log
+[goblin-warehouse]: https://github.com/Xcraft-Inc/goblin-warehouse
+[goblin-workshop]: https://github.com/Xcraft-Inc/goblin-workshop
 [goblin-laboratory]: https://github.com/Xcraft-Inc/goblin-laboratory
-[xcraft-core-pickaxe]: https://github.com/Xcraft-Inc/xcraft-core-pickaxe
-[xcraft-core-book]: https://github.com/Xcraft-Inc/xcraft-core-book
