@@ -607,8 +607,7 @@ Identifiants au format `type@uid`.
 Types et shapes spécialisés.
 
 - **`id(name)`** / **`IdType`** — Type d'identifiant `` `name@${string}` `` avec validation du préfixe.
-- **`MetaShape`** — `index`, `locale`, `scope` (optionnels), `vectors` (enregistrement de `ChunkShape`) et `status` (`published`, `trashed` ou `archived`).
-- **`ChunkShape`** — `chunk` et `embedding` (littéral SQLite de blob).
+- **`MetaShape`** — `index`, `locale`, `scope` (optionnels), `vectors` (mapping `chunkId -> embedding`) et `status` (`published`, `trashed` ou `archived`).
 
 ### `lib/osInfo.js`
 
